@@ -1,7 +1,9 @@
 import base64
 import json
-from uuid import UUID
+import time
+from uuid import UUID, uuid4
 
+import jwt
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -224,3 +226,48 @@ def test_current_user_endpoint_returns_safe_account_for_a_valid_bearer_token(
         "email": "buyer@example.com",
         "role": "standard_user",
     }
+
+
+def test_invalid_or_missing_bearer_tokens_return_unauthorized(
+    postgres_url: str, monkeypatch
+) -> None:
+    """Every unusable bearer token fails with the same authorization boundary response."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "buyer@example.com", "password": "valid-password"}
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        now = int(time.time())
+        valid_claims = {"sub": registration_response.json()["id"], "iat": now, "exp": now + 3600}
+        tokens = [
+            None,
+            "not.a.jwt",
+            jwt.encode(
+                {**valid_claims, "exp": now - 1}, get_settings().jwt_secret, algorithm="HS256"
+            ),
+            jwt.encode(valid_claims, "a-different-high-entropy-secret", algorithm="HS256"),
+            jwt.encode(
+                {**valid_claims, "sub": str(uuid4())},
+                get_settings().jwt_secret,
+                algorithm="HS256",
+            ),
+        ]
+        responses = [
+            client.get(
+                "/api/auth/me",
+                headers={} if token is None else {"Authorization": f"Bearer {token}"},
+            )
+            for token in tokens
+        ]
+
+    assert registration_response.status_code == 201
+    assert [response.status_code for response in responses] == [401] * len(responses)
+    for response in responses:
+        error = response.json()["error"]
+        assert error["code"] == "unauthorized"
+        UUID(error["request_id"])
