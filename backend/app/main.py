@@ -1,5 +1,7 @@
 import logging
 import time
+from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
@@ -46,6 +48,25 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"]
+
+
+class CreateVehicleRequest(BaseModel):
+    make: str
+    model: str
+    category: str
+    price: Decimal
+    quantity: int
+
+
+class VehicleListingOut(BaseModel):
+    id: UUID
+    make: str
+    model: str
+    category: str
+    price: Decimal
+    quantity: int
+    created_at: datetime
+    updated_at: datetime
 
 
 def get_current_user(
@@ -263,6 +284,35 @@ def create_app() -> FastAPI:
             algorithm="HS256",
         )
         return TokenResponse(access_token=access_token, token_type="bearer")
+
+    @app.post("/api/vehicles", status_code=201, response_model=VehicleListingOut, tags=["vehicles"])
+    def create_vehicle_listing(
+        payload: CreateVehicleRequest,
+        _: UserOut = Depends(require_admin),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> VehicleListingOut:
+        """Add a listing to the active inventory catalogue."""
+        listing = (
+            session.execute(
+                text(
+                    "INSERT INTO vehicle_listings (id, make, model, category, price, quantity) "
+                    "VALUES (:id, :make, :model, :category, :price, :quantity) "
+                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                ),
+                {
+                    "id": uuid4(),
+                    "make": payload.make.strip(),
+                    "model": payload.model.strip(),
+                    "category": payload.category,
+                    "price": payload.price,
+                    "quantity": payload.quantity,
+                },
+            )
+            .mappings()
+            .one()
+        )
+        session.commit()
+        return VehicleListingOut(**listing)
 
     return app
 
