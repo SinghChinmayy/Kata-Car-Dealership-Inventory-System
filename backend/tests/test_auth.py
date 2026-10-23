@@ -271,3 +271,37 @@ def test_invalid_or_missing_bearer_tokens_return_unauthorized(
         error = response.json()["error"]
         assert error["code"] == "unauthorized"
         UUID(error["request_id"])
+
+
+def test_administrator_dependency_forbids_standard_users_and_allows_administrators(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Administrator authorization is decided from the account role loaded for each request."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "buyer@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        login_response = client.post("/api/auth/login", json=credentials)
+        headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+        standard_response = client.get("/api/auth/admin-check", headers=headers)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": registration_response.json()["id"]},
+            )
+        administrator_response = client.get("/api/auth/admin-check", headers=headers)
+
+    assert registration_response.status_code == 201
+    assert login_response.status_code == 200
+    assert standard_response.status_code == 403
+    standard_error = standard_response.json()["error"]
+    assert standard_error["code"] == "forbidden"
+    UUID(standard_error["request_id"])
+    assert administrator_response.status_code == 200
+    assert administrator_response.json() == {"status": "ok"}
