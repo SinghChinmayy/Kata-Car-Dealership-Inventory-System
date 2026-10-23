@@ -184,3 +184,54 @@ def test_authenticated_user_reads_backend_owned_vehicle_categories(
     assert response.json() == {
         "items": ["Sedan", "SUV", "Hatchback", "Truck", "Coupe", "Convertible", "Van"]
     }
+
+
+def test_authenticated_user_searches_vehicle_listings_with_and_semantics(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Every supplied search filter narrows the protected active listing result."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "inventory@example.com", "password": "valid-password"}
+    listings = [
+        ("Tata", "Nexon", "SUV", "1250000.00"),
+        ("Tata", "Punch", "SUV", "700000.00"),
+        ("Mahindra", "XUV700", "SUV", "2500000.00"),
+    ]
+
+    with TestClient(create_app()) as client:
+        registered = client.post("/api/auth/register", json=credentials)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": registered.json()["id"]},
+            )
+        logged_in = client.post("/api/auth/login", json=credentials)
+        headers = {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+        for make, model, category, price in listings:
+            created = client.post(
+                "/api/vehicles",
+                headers=headers,
+                json={
+                    "make": make,
+                    "model": model,
+                    "category": category,
+                    "price": price,
+                    "quantity": 1,
+                },
+            )
+            assert created.status_code == 201
+        response = client.get(
+            "/api/vehicles/search",
+            headers=headers,
+            params={"make": "ta", "model": "nex", "category": "SUV", "min_price": "1000000.00"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [listing["model"] for listing in payload["items"]] == ["Nexon"]
