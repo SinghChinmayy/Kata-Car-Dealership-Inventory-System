@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pwdlib import PasswordHash
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
@@ -22,6 +23,7 @@ from app.errors import DomainError
 
 logger = logging.getLogger("app")
 password_hasher = PasswordHash.recommended()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 class RegisterRequest(BaseModel):
@@ -43,6 +45,29 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"]
+
+
+def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),  # noqa: B008
+    session: Session = Depends(get_db_session),  # noqa: B008
+) -> UserOut:
+    """Load the current account from the signed token subject."""
+    claims = jwt.decode(
+        credentials.credentials,
+        get_settings().jwt_secret,
+        algorithms=["HS256"],
+    )
+    user = (
+        session.execute(
+            text("SELECT id, email, role FROM user_accounts WHERE id = :id"),
+            {"id": UUID(claims["sub"])},
+        )
+        .mappings()
+        .one()
+    )
+    request.state.user_id = str(user["id"])
+    return UserOut(id=user["id"], email=user["email"], role=user["role"])
 
 
 def error_response(
@@ -156,6 +181,10 @@ def create_app() -> FastAPI:
         except SQLAlchemyError as exc:
             raise DomainError(503, "service_unavailable", "Database is unavailable.") from exc
         return {"status": "ok"}
+
+    @app.get("/api/auth/me", response_model=UserOut, tags=["auth"])
+    def current_user(user: UserOut = Depends(get_current_user)) -> UserOut:  # noqa: B008
+        return user
 
     @app.post("/api/auth/register", status_code=201, response_model=UserOut, tags=["auth"])
     def register(
