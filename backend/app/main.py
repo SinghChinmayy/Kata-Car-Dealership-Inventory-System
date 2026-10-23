@@ -1,12 +1,14 @@
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pwdlib import PasswordHash
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -18,6 +20,18 @@ from app.db.session import get_db_session
 from app.errors import DomainError
 
 logger = logging.getLogger("app")
+password_hasher = PasswordHash.recommended()
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: UUID
+    email: str
+    role: Literal["standard_user"]
 
 
 def error_response(
@@ -131,6 +145,29 @@ def create_app() -> FastAPI:
         except SQLAlchemyError as exc:
             raise DomainError(503, "service_unavailable", "Database is unavailable.") from exc
         return {"status": "ok"}
+
+    @app.post("/api/auth/register", status_code=201, response_model=UserOut, tags=["auth"])
+    def register(
+        payload: RegisterRequest,
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> UserOut:
+        user_id = uuid4()
+        email = payload.email.strip().lower()
+        role = "standard_user"
+        session.execute(
+            text(
+                "INSERT INTO user_accounts (id, email, password_hash, role) "
+                "VALUES (:id, :email, :password_hash, :role)"
+            ),
+            {
+                "id": user_id,
+                "email": email,
+                "password_hash": password_hasher.hash(payload.password),
+                "role": role,
+            },
+        )
+        session.commit()
+        return UserOut(id=user_id, email=email, role=role)
 
     return app
 

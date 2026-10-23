@@ -1,6 +1,5 @@
-from sqlalchemy import text
-
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.main import create_app
 
