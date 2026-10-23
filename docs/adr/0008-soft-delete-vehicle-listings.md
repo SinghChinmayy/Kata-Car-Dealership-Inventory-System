@@ -1,0 +1,3 @@
+# Soft-delete vehicle listings
+
+Deleting a Vehicle Listing will retire it from active inventory without physically removing its record, even when Stock Quantity is positive. The record retains the remaining quantity, deletion time, and deleting Administrator, preserving the audit trail linking historical Purchases to listings and making vehicle deletion itself auditable. Deleted listings are excluded from normal lists and searches and return 404 to purchase, update, and restock operations; a future administrator audit view may explicitly include them. Restore/undelete is deliberately future scope.
