@@ -156,3 +156,31 @@ def test_authenticated_user_lists_active_vehicle_listings_by_newest_first(
     assert payload["page"] == 1
     assert payload["page_size"] == 20
     assert [listing["make"] for listing in payload["items"]] == ["Third", "Second", "First"]
+
+
+def test_authenticated_user_reads_backend_owned_vehicle_categories(
+    postgres_url: str, monkeypatch
+) -> None:
+    """The category vocabulary comes from the protected API, not duplicated client state."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "reader@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        login_response = client.post("/api/auth/login", json=credentials)
+        response = client.get(
+            "/api/vehicles/categories",
+            headers={"Authorization": f"Bearer {login_response.json()['access_token']}"},
+        )
+
+    assert registration_response.status_code == 201
+    assert login_response.status_code == 200
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": ["Sedan", "SUV", "Hatchback", "Truck", "Coupe", "Convertible", "Van"]
+    }
