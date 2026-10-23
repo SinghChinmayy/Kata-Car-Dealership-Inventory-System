@@ -99,3 +99,32 @@ def test_registration_rejects_malformed_email_addresses(postgres_url: str, monke
     assert error["fields"]["email"]
     assert malformed_email not in error["fields"]["email"]
     UUID(error["request_id"])
+
+
+def test_registration_returns_conflict_for_a_duplicate_normalized_email(
+    postgres_url: str, monkeypatch
+) -> None:
+    """Public registration reports a normalized-email conflict without exposing credentials."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+    with TestClient(create_app()) as client:
+        first_response = client.post(
+            "/api/auth/register",
+            json={"email": "buyer@example.com", "password": "valid-password"},
+        )
+        duplicate_response = client.post(
+            "/api/auth/register",
+            json={"email": " BUYER@example.com ", "password": "valid-password"},
+        )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 409
+    error = duplicate_response.json()["error"]
+    assert error["code"] == "duplicate_email"
+    assert "password_hash" not in duplicate_response.text
+    UUID(error["request_id"])
