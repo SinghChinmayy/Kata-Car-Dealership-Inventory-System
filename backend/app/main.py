@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -84,6 +84,13 @@ class VehicleListingOut(BaseModel):
     quantity: int
     created_at: datetime
     updated_at: datetime
+
+
+class VehicleListingPageOut(BaseModel):
+    items: list[VehicleListingOut]
+    total: int
+    page: int
+    page_size: int
 
 
 def get_current_user(
@@ -330,6 +337,35 @@ def create_app() -> FastAPI:
         )
         session.commit()
         return VehicleListingOut(**listing)
+
+    @app.get("/api/vehicles", response_model=VehicleListingPageOut, tags=["vehicles"])
+    def list_vehicle_listings(
+        _: UserOut = Depends(get_current_user),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=20, ge=1),
+    ) -> VehicleListingPageOut:
+        """Return active catalogue listings in stable newest-first order."""
+        effective_page_size = min(page_size, 100)
+        total = session.execute(text("SELECT COUNT(*) FROM vehicle_listings")).scalar_one()
+        listings = (
+            session.execute(
+                text(
+                    "SELECT id, make, model, category, price, quantity, created_at, updated_at "
+                    "FROM vehicle_listings ORDER BY created_at DESC, id DESC "
+                    "LIMIT :limit OFFSET :offset"
+                ),
+                {"limit": effective_page_size, "offset": (page - 1) * effective_page_size},
+            )
+            .mappings()
+            .all()
+        )
+        return VehicleListingPageOut(
+            items=[VehicleListingOut(**listing) for listing in listings],
+            total=total,
+            page=page,
+            page_size=effective_page_size,
+        )
 
     return app
 
