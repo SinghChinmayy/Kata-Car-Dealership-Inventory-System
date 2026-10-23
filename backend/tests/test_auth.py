@@ -75,3 +75,27 @@ def test_registration_rejects_passwords_outside_the_12_to_128_character_range(
             assert error["fields"]["password"]
             assert password not in error["fields"]["password"]
             UUID(error["request_id"])
+
+
+def test_registration_rejects_malformed_email_addresses(postgres_url: str, monkeypatch) -> None:
+    """Registration requires an email-shaped account identifier."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    malformed_email = "not-an-email"
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/auth/register",
+            json={"email": malformed_email, "password": "valid-password"},
+        )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert error["fields"]["email"]
+    assert malformed_email not in error["fields"]["email"]
+    UUID(error["request_id"])
