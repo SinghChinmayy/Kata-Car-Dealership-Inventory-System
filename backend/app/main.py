@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.exceptions import PyJWTError
 from pwdlib import PasswordHash
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
@@ -53,19 +54,26 @@ def get_current_user(
     session: Session = Depends(get_db_session),  # noqa: B008
 ) -> UserOut:
     """Load the current account from the signed token subject."""
-    claims = jwt.decode(
-        credentials.credentials,
-        get_settings().jwt_secret,
-        algorithms=["HS256"],
-    )
-    user = (
-        session.execute(
-            text("SELECT id, email, role FROM user_accounts WHERE id = :id"),
-            {"id": UUID(claims["sub"])},
+    try:
+        if credentials is None:
+            raise ValueError("Missing bearer token")
+        claims = jwt.decode(
+            credentials.credentials,
+            get_settings().jwt_secret,
+            algorithms=["HS256"],
         )
-        .mappings()
-        .one()
-    )
+        user = (
+            session.execute(
+                text("SELECT id, email, role FROM user_accounts WHERE id = :id"),
+                {"id": UUID(claims["sub"])},
+            )
+            .mappings()
+            .one_or_none()
+        )
+    except (KeyError, PyJWTError, ValueError) as exc:
+        raise DomainError(401, "unauthorized", "Authentication is required.") from exc
+    if user is None:
+        raise DomainError(401, "unauthorized", "Authentication is required.")
     request.state.user_id = str(user["id"])
     return UserOut(id=user["id"], email=user["email"], role=user["role"])
 
