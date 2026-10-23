@@ -3,6 +3,7 @@ import time
 from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
+import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +33,16 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     role: Literal["standard_user"]
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"]
 
 
 def error_response(
@@ -176,6 +187,34 @@ def create_app() -> FastAPI:
                 "An account with this email already exists.",
             ) from exc
         return UserOut(id=user_id, email=email, role=role)
+
+    @app.post("/api/auth/login", response_model=TokenResponse, tags=["auth"])
+    def login(
+        payload: LoginRequest,
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> TokenResponse:
+        user = (
+            session.execute(
+                text("SELECT id, password_hash FROM user_accounts WHERE email = :email"),
+                {"email": payload.email.strip().lower()},
+            )
+            .mappings()
+            .one()
+        )
+        if not password_hasher.verify(payload.password, user["password_hash"]):
+            raise ValueError("Invalid credentials")
+
+        issued_at = int(time.time())
+        access_token = jwt.encode(
+            {
+                "sub": str(user["id"]),
+                "iat": issued_at,
+                "exp": issued_at + get_settings().jwt_access_token_minutes * 60,
+            },
+            get_settings().jwt_secret,
+            algorithm="HS256",
+        )
+        return TokenResponse(access_token=access_token, token_type="bearer")
 
     return app
 
