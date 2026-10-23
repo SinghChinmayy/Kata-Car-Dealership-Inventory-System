@@ -41,4 +41,5 @@ For validation failures only, `fields` is added as a map of field names to safe 
 | `method_not_allowed` | 405 | The route does not accept the request method. |
 | `duplicate_email` | 409 | The registration email already belongs to an account. |
 | `out_of_stock` | 409 | The active Vehicle Listing has no purchasable units. |
+| `service_unavailable` | 503 | A required dependency, such as PostgreSQL, is unavailable. |
 | `internal_error` | 500 | An unexpected failure occurred; implementation details are not exposed. |
