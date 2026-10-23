@@ -105,3 +105,33 @@ The skill and `AGENTS.md` trigger are in place. The skill validator cannot start
 ````text
 Yes, follows explicit red, green, refactor commits, in this order: auth, vehicle management, then purchase/restock concurrency. Frontend work starts once the matching API contract is green. Use the `tdd-red-green-refactor` skill for the commit rules, the order of work, the naive-then-atomic purchase progression, and the AI co-author and `PROMPTS.md` requirements.
 ````
+
+## User
+
+````text
+commit the changes in repo first
+````
+
+## User
+
+````text
+what is the next stage
+````
+
+## User
+
+````text
+start it in an agent
+````
+
+## User
+
+````text
+deligate each task to sub agent and you coordinate them
+````
+
+## User
+
+````text
+update your prompts.md based on instructions
+````
