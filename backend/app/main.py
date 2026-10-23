@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pwdlib import PasswordHash
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ password_hasher = PasswordHash.recommended()
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str
+    password: str = Field(min_length=12, max_length=128)
 
 
 class UserOut(BaseModel):
