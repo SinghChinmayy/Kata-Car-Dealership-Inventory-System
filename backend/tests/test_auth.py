@@ -1,3 +1,5 @@
+import base64
+import json
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -128,3 +130,33 @@ def test_registration_returns_conflict_for_a_duplicate_normalized_email(
     assert error["code"] == "duplicate_email"
     assert "password_hash" not in duplicate_response.text
     UUID(error["request_id"])
+
+
+def test_valid_credentials_issue_an_access_token(postgres_url: str, monkeypatch) -> None:
+    """Login grants a one-hour bearer token to an existing Standard User."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "buyer@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        login_response = client.post("/api/auth/login", json=credentials)
+
+    assert registration_response.status_code == 201
+    assert login_response.status_code == 200
+    token_response = login_response.json()
+    assert set(token_response) == {"access_token", "token_type"}
+    assert token_response["token_type"] == "bearer"
+
+    token_parts = token_response["access_token"].split(".")
+    assert len(token_parts) == 3
+    payload_segment = token_parts[1] + "=" * (-len(token_parts[1]) % 4)
+    claims = json.loads(base64.urlsafe_b64decode(payload_segment))
+    assert claims["sub"] == registration_response.json()["id"]
+    assert isinstance(claims["iat"], int)
+    assert isinstance(claims["exp"], int)
+    assert 3590 <= claims["exp"] - claims["iat"] <= 3610
