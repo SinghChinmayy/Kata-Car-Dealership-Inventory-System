@@ -110,3 +110,49 @@ def test_vehicle_creation_validates_catalogue_fields(
     assert error["code"] == "validation_error"
     assert error["fields"][field]
     UUID(error["request_id"])
+
+
+def test_authenticated_user_lists_active_vehicle_listings_by_newest_first(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """The protected catalogue returns a stable paginated active-listing envelope."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "inventory@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": registration_response.json()["id"]},
+            )
+        login_response = client.post("/api/auth/login", json=credentials)
+        headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+        for make in ("First", "Second", "Third"):
+            create_response = client.post(
+                "/api/vehicles",
+                headers=headers,
+                json={
+                    "make": make,
+                    "model": "Model",
+                    "category": "SUV",
+                    "price": "1250000.00",
+                    "quantity": 3,
+                },
+            )
+            assert create_response.status_code == 201
+        response = client.get("/api/vehicles", headers=headers)
+
+    assert registration_response.status_code == 201
+    assert login_response.status_code == 200
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 3
+    assert payload["page"] == 1
+    assert payload["page_size"] == 20
+    assert [listing["make"] for listing in payload["items"]] == ["Third", "Second", "First"]
