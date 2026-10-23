@@ -35,7 +35,7 @@ class RegisterRequest(BaseModel):
 class UserOut(BaseModel):
     id: UUID
     email: str
-    role: Literal["standard_user"]
+    role: Literal["standard_user", "administrator"]
 
 
 class LoginRequest(BaseModel):
@@ -76,6 +76,13 @@ def get_current_user(
         raise DomainError(401, "unauthorized", "Authentication is required.")
     request.state.user_id = str(user["id"])
     return UserOut(id=user["id"], email=user["email"], role=user["role"])
+
+
+def require_admin(user: UserOut = Depends(get_current_user)) -> UserOut:  # noqa: B008
+    """Require the current account to retain the Administrator role."""
+    if user.role != "administrator":
+        raise DomainError(403, "forbidden", "You do not have permission to perform this action.")
+    return user
 
 
 def error_response(
@@ -193,6 +200,10 @@ def create_app() -> FastAPI:
     @app.get("/api/auth/me", response_model=UserOut, tags=["auth"])
     def current_user(user: UserOut = Depends(get_current_user)) -> UserOut:  # noqa: B008
         return user
+
+    @app.get("/api/auth/admin-check", tags=["auth"])
+    def administrator_check(_: UserOut = Depends(require_admin)) -> dict[str, str]:  # noqa: B008
+        return {"status": "ok"}
 
     @app.post("/api/auth/register", status_code=201, response_model=UserOut, tags=["auth"])
     def register(
