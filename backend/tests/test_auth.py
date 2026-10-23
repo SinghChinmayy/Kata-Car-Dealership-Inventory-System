@@ -160,3 +160,37 @@ def test_valid_credentials_issue_an_access_token(postgres_url: str, monkeypatch)
     assert isinstance(claims["iat"], int)
     assert isinstance(claims["exp"], int)
     assert 3590 <= claims["exp"] - claims["iat"] <= 3610
+
+
+def test_invalid_login_credentials_return_an_indistinguishable_401(
+    postgres_url: str, monkeypatch
+) -> None:
+    """Unknown accounts and wrong passwords do not disclose which credential failed."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        registration_response = client.post(
+            "/api/auth/register",
+            json={"email": "buyer@example.com", "password": "valid-password"},
+        )
+        unknown_email_response = client.post(
+            "/api/auth/login",
+            json={"email": "unknown@example.com", "password": "valid-password"},
+        )
+        wrong_password_response = client.post(
+            "/api/auth/login",
+            json={"email": "buyer@example.com", "password": "incorrect-password"},
+        )
+
+    assert registration_response.status_code == 201
+    errors = [unknown_email_response.json()["error"], wrong_password_response.json()["error"]]
+    assert [unknown_email_response.status_code, wrong_password_response.status_code] == [401, 401]
+    assert [error["code"] for error in errors] == ["invalid_credentials", "invalid_credentials"]
+    assert errors[0]["message"] == errors[1]["message"]
+    for error in errors:
+        UUID(error["request_id"])
