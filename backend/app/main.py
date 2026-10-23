@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pwdlib import PasswordHash
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -154,19 +154,27 @@ def create_app() -> FastAPI:
         user_id = uuid4()
         email = payload.email.strip().lower()
         role = "standard_user"
-        session.execute(
-            text(
-                "INSERT INTO user_accounts (id, email, password_hash, role) "
-                "VALUES (:id, :email, :password_hash, :role)"
-            ),
-            {
-                "id": user_id,
-                "email": email,
-                "password_hash": password_hasher.hash(payload.password),
-                "role": role,
-            },
-        )
-        session.commit()
+        try:
+            session.execute(
+                text(
+                    "INSERT INTO user_accounts (id, email, password_hash, role) "
+                    "VALUES (:id, :email, :password_hash, :role)"
+                ),
+                {
+                    "id": user_id,
+                    "email": email,
+                    "password_hash": password_hasher.hash(payload.password),
+                    "role": role,
+                },
+            )
+            session.commit()
+        except IntegrityError as exc:
+            session.rollback()
+            raise DomainError(
+                409,
+                "duplicate_email",
+                "An account with this email already exists.",
+            ) from exc
         return UserOut(id=user_id, email=email, role=role)
 
     return app
