@@ -2,6 +2,7 @@ import logging
 import time
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
@@ -13,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from pwdlib import PasswordHash
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -50,12 +51,28 @@ class TokenResponse(BaseModel):
     token_type: Literal["bearer"]
 
 
+class VehicleCategory(str, Enum):
+    sedan = "Sedan"
+    suv = "SUV"
+    hatchback = "Hatchback"
+    truck = "Truck"
+    coupe = "Coupe"
+    convertible = "Convertible"
+    van = "Van"
+
+
 class CreateVehicleRequest(BaseModel):
-    make: str
-    model: str
-    category: str
-    price: Decimal
-    quantity: int
+    make: str = Field(min_length=1, max_length=100)
+    model: str = Field(min_length=1, max_length=100)
+    category: VehicleCategory
+    price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
+    quantity: int = Field(ge=0)
+
+    @field_validator("make", "model", mode="before")
+    @classmethod
+    def trim_text(cls, value: object) -> object:
+        """Normalize catalogue text before applying its required-length rule."""
+        return value.strip() if isinstance(value, str) else value
 
 
 class VehicleListingOut(BaseModel):
@@ -301,9 +318,9 @@ def create_app() -> FastAPI:
                 ),
                 {
                     "id": uuid4(),
-                    "make": payload.make.strip(),
-                    "model": payload.model.strip(),
-                    "category": payload.category,
+                    "make": payload.make,
+                    "model": payload.model,
+                    "category": payload.category.value,
                     "price": payload.price,
                     "quantity": payload.quantity,
                 },
