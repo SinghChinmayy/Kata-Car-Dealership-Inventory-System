@@ -199,10 +199,10 @@ def create_app() -> FastAPI:
                 {"email": payload.email.strip().lower()},
             )
             .mappings()
-            .one()
+            .one_or_none()
         )
-        if not password_hasher.verify(payload.password, user["password_hash"]):
-            raise ValueError("Invalid credentials")
+        if user is None or not password_hasher.verify(payload.password, user["password_hash"]):
+            raise DomainError(401, "invalid_credentials", "Email or password is incorrect.")
 
         issued_at = int(time.time())
         access_token = jwt.encode(
