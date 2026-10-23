@@ -194,3 +194,33 @@ def test_invalid_login_credentials_return_an_indistinguishable_401(
     assert errors[0]["message"] == errors[1]["message"]
     for error in errors:
         UUID(error["request_id"])
+
+
+def test_current_user_endpoint_returns_safe_account_for_a_valid_bearer_token(
+    postgres_url: str, monkeypatch
+) -> None:
+    """Protected identity lookup reads the current account represented by a valid token."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "buyer@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registration_response = client.post("/api/auth/register", json=credentials)
+        login_response = client.post("/api/auth/login", json=credentials)
+        me_response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {login_response.json()['access_token']}"},
+        )
+
+    assert registration_response.status_code == 201
+    assert login_response.status_code == 200
+    assert me_response.status_code == 200
+    assert me_response.json() == {
+        "id": registration_response.json()["id"],
+        "email": "buyer@example.com",
+        "role": "standard_user",
+    }
