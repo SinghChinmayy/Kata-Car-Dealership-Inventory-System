@@ -26,7 +26,7 @@ Do not overwrite or remove existing AI usage entries. Add each new tool or use c
 
 # AI Chat Records
 
-Keep a `PROMPTS.md` file at the repository root containing raw, unedited AI chat logs or links to public AI chats. Do not substitute AI-generated summaries for the original conversations.
+Keep a `PROMPTS.md` file at the repository root containing raw, unedited AI chat logs to public AI chats. Do not substitute AI-generated summaries for the original conversations.
 
 # Test-Driven Development (TDD)
 
