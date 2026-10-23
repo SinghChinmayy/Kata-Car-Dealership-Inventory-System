@@ -93,6 +93,10 @@ class VehicleListingPageOut(BaseModel):
     page_size: int
 
 
+class VehicleCategoriesOut(BaseModel):
+    items: list[str]
+
+
 def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),  # noqa: B008
@@ -366,6 +370,13 @@ def create_app() -> FastAPI:
             page=page,
             page_size=effective_page_size,
         )
+
+    @app.get("/api/vehicles/categories", response_model=VehicleCategoriesOut, tags=["vehicles"])
+    def list_vehicle_categories(
+        _: UserOut = Depends(get_current_user),  # noqa: B008
+    ) -> VehicleCategoriesOut:
+        """Expose the backend-owned category vocabulary to authenticated clients."""
+        return VehicleCategoriesOut(items=[category.value for category in VehicleCategory])
 
     return app
 
