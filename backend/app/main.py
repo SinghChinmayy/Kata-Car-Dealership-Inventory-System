@@ -400,6 +400,9 @@ def create_app() -> FastAPI:
         effective_page_size = min(page_size, 100)
         conditions: list[str] = []
         params: dict[str, Any] = {}
+        # Blank form fields arrive as empty or whitespace-only terms; they mean "no filter".
+        make = make.strip() if make else None
+        model = model.strip() if model else None
         if make:
             conditions.append("make ILIKE :make")
             params["make"] = f"%{make}%"
