@@ -523,10 +523,10 @@ def create_app() -> FastAPI:
     )
     def purchase_vehicle_listing(
         listing_id: UUID,
-        _: UserOut = Depends(get_current_user),  # noqa: B008
+        purchaser: UserOut = Depends(get_current_user),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
     ) -> VehicleListingOut:
-        """Buy one unit of a listing."""
+        """Buy one unit of a listing and record the sale with catalogue snapshots."""
         # Naive read-then-write; the concurrency test will show why this oversells.
         quantity = session.execute(
             text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
@@ -541,6 +541,23 @@ def create_app() -> FastAPI:
             )
             .mappings()
             .one()
+        )
+        # Same transaction as the decrement: either both persist or neither does.
+        session.execute(
+            text(
+                "INSERT INTO purchases "
+                "(id, listing_id, purchaser_id, price, make, model, category) "
+                "VALUES (:id, :listing_id, :purchaser_id, :price, :make, :model, :category)"
+            ),
+            {
+                "id": uuid4(),
+                "listing_id": listing["id"],
+                "purchaser_id": purchaser.id,
+                "price": listing["price"],
+                "make": listing["make"],
+                "model": listing["model"],
+                "category": listing["category"],
+            },
         )
         session.commit()
         return VehicleListingOut(**listing)
