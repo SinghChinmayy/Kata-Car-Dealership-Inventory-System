@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Optional
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.config import Settings
 
@@ -40,3 +42,25 @@ def test_example_env_file_loads(monkeypatch) -> None:
     settings = Settings(_env_file=example)
 
     assert settings.allowed_cors_origins == ["http://localhost:5173"]
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [None, "", "change-me-in-development-only", "x" * 31],
+    ids=["missing", "blank", "documented-placeholder", "31-chars"],
+)
+def test_weak_or_missing_jwt_secret_is_refused(monkeypatch, secret: Optional[str]) -> None:
+    """Tokens signed with a guessable key could be forged for any account, so startup fails."""
+    if secret is None:
+        monkeypatch.delenv("JWT_SECRET", raising=False)
+    else:
+        monkeypatch.setenv("JWT_SECRET", secret)
+
+    with pytest.raises(ValidationError, match="JWT_SECRET"):
+        Settings(_env_file=None)
+
+
+def test_strong_jwt_secret_is_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("JWT_SECRET", "s" * 32)
+
+    assert Settings(_env_file=None).jwt_secret == "s" * 32
