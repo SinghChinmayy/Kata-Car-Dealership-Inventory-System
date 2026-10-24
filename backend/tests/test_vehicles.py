@@ -768,3 +768,42 @@ def test_purchase_is_open_to_any_authenticated_account(
     assert anonymous_response.json()["error"]["code"] == "unauthorized"
     assert admin_response.status_code == 200
     assert admin_response.json()["quantity"] == 2
+
+
+def test_purchase_records_who_bought_what_at_which_price(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Each purchase stores catalogue snapshots that later admin edits never change."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        buyer_id = client.get("/api/auth/me", headers=buyer).json()["id"]
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 3})
+        listing_id = created.json()["id"]
+        client.post(f"/api/vehicles/{listing_id}/purchase", headers=buyer)
+        client.put(
+            f"/api/vehicles/{listing_id}",
+            headers=admin,
+            json={"make": "Tata", "model": "Nexon EV", "category": "SUV", "price": "1600000.00"},
+        )
+
+    with postgres_engine.connect() as connection:
+        purchases = (
+            connection.execute(
+                text(
+                    "SELECT listing_id, purchaser_id, price, make, model, category, purchased_at "
+                    "FROM purchases"
+                )
+            )
+            .mappings()
+            .all()
+        )
+    assert len(purchases) == 1
+    purchase = purchases[0]
+    assert str(purchase["listing_id"]) == listing_id
+    assert str(purchase["purchaser_id"]) == buyer_id
+    assert str(purchase["price"]) == "1250000.00"
+    assert (purchase["make"], purchase["model"], purchase["category"]) == ("Tata", "Nexon", "SUV")
+    assert purchase["purchased_at"] is not None
