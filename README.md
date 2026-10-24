@@ -24,6 +24,18 @@ Common commands are exposed through the root `Makefile`: `make migrate`, `make t
 
 The latest results are in [docs/test-report.md](docs/test-report.md): backend and frontend pass counts and the backend coverage table. `make report` reruns both suites and overwrites the file, and it is refreshed with every green and refactor commit. Docker must be running for the backend suite.
 
+### End-to-end test
+
+`make e2e` (or `cd frontend && npm run e2e`) runs one Playwright journey in Chromium:
+1. An administrator signs in, adds a vehicle with one unit, and logs out.
+2. A new buyer registers, searches for that vehicle, and buys it.
+3. The test checks the confirmation and that the card shows "Out of stock" with Purchase disabled.
+
+Playwright starts the API and the Vite dev server itself. The API uses a separate `dealership_e2e` database, which is dropped, migrated, and seeded with its own administrator on every run; the reset script refuses any database whose name does not end in `_e2e`. Requirements:
+- PostgreSQL running on port 5432 (the `make db-up` service);
+- ports 8000 and 5173 free;
+- browsers installed once with `npx playwright install chromium`.
+
 ## Security scope and trade-offs
 
 User registration normalizes email by trimming and lowercasing it, validates it as an email address, and protects it with a database unique index. A duplicate registration returns `409 Conflict`; this intentionally reveals that the email is already registered, an accepted trade-off for this kata. Login failures always return a generic `401 Unauthorized` response.
@@ -94,7 +106,7 @@ The single-page app resolves the frontend's open choices as follows:
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
 - The design is a dark "showroom" theme with a single amber accent and a responsive one-to-three column grid.
 - Known accessibility gap: dialogs focus their first control and close on Escape, but they do not yet keep Tab focus inside the dialog or return focus to the button that opened them. Keyboard-only users can tab onto the page behind an open dialog.
-- Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. The single Playwright end-to-end journey is planned as a separate step.
+- Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. One Playwright journey exercises the real stack end to end.
 
 ## My AI Usage
 
@@ -129,3 +141,5 @@ I then had Claude Code fix those two setup bugs test-first and run an independen
 - smaller hardening, plus guard tests for demotion and self-assigned roles.
 
 I also agreed a routine: `make report` refreshes [docs/test-report.md](docs/test-report.md) on every green and refactor commit. I skipped the dialog focus-trap change and left older commit messages as they are. Having a second agent review the code without seeing our earlier reasoning caught a real security flaw that the original implementation pass had argued itself into.
+
+Finally, I asked Claude Code to build the Playwright end-to-end journey in a subagent. It isolated the run in a throwaway `_e2e` database with a guarded reset, so my development data was never touched. It ran the journey three times without flakiness and found no application bugs; I then re-ran it in the main session to confirm.
