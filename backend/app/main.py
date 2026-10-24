@@ -379,6 +379,7 @@ def create_app() -> FastAPI:
         model: Optional[str] = None,
         category: Optional[VehicleCategory] = None,
         min_price: Optional[Decimal] = None,
+        max_price: Optional[Decimal] = None,
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
@@ -398,6 +399,9 @@ def create_app() -> FastAPI:
         if min_price is not None:
             conditions.append("price >= :min_price")
             params["min_price"] = min_price
+        if max_price is not None:
+            conditions.append("price <= :max_price")
+            params["max_price"] = max_price
         where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
         total = session.execute(
             text(f"SELECT COUNT(*) FROM vehicle_listings {where}"), params
