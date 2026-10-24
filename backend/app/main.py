@@ -107,6 +107,11 @@ class VehicleCategoriesOut(BaseModel):
     items: list[str]
 
 
+def listing_not_found() -> DomainError:
+    """Missing and retired listings look the same: neither is an active resource."""
+    return DomainError(404, "not_found", "The requested resource does not exist.")
+
+
 def contains_pattern(term: str) -> str:
     """Build an ILIKE substring pattern in which the user's LIKE wildcards stay literal."""
     escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -489,7 +494,7 @@ def create_app() -> FastAPI:
             .one_or_none()
         )
         if listing is None:
-            raise DomainError(404, "not_found", "The requested resource does not exist.")
+            raise listing_not_found()
         session.commit()
         return VehicleListingOut(**listing)
 
@@ -509,7 +514,7 @@ def create_app() -> FastAPI:
             {"id": listing_id, "deleted_by": admin.id},
         ).one_or_none()
         if deleted is None:
-            raise DomainError(404, "not_found", "The requested resource does not exist.")
+            raise listing_not_found()
         session.commit()
         return Response(status_code=204)
 
