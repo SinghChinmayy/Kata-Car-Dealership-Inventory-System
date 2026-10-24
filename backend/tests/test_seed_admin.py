@@ -1,0 +1,44 @@
+from sqlalchemy import text
+
+ADMIN_EMAIL = "Owner@Example.com"
+ADMIN_PASSWORD = "initial-admin-password"
+
+
+def configure(monkeypatch, postgres_url: str, **overrides: str) -> None:
+    """Point settings at the test database with the seed command's environment."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    monkeypatch.setenv("INITIAL_ADMIN_EMAIL", overrides.get("email", ADMIN_EMAIL))
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", overrides.get("password", ADMIN_PASSWORD))
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+
+def accounts(postgres_engine) -> list[dict]:
+    with postgres_engine.connect() as connection:
+        return [
+            dict(row)
+            for row in connection.execute(
+                text("SELECT email, role, password_hash FROM user_accounts")
+            ).mappings()
+        ]
+
+
+def test_seed_admin_creates_the_initial_administrator(
+    postgres_url: str, postgres_engine, monkeypatch, capsys
+) -> None:
+    """The seed command creates an Administrator who can sign in with the configured password."""
+    configure(monkeypatch, postgres_url)
+    from app.main import password_hasher
+    from app.scripts.seed_admin import main
+
+    main()
+
+    created = accounts(postgres_engine)
+    assert len(created) == 1
+    assert created[0]["email"] == "owner@example.com"
+    assert created[0]["role"] == "administrator"
+    assert password_hasher.verify(ADMIN_PASSWORD, created[0]["password_hash"])
+    assert "created" in capsys.readouterr().out
