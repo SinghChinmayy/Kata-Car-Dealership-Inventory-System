@@ -1,14 +1,18 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
     """Runtime settings loaded from environment variables or a local .env file."""
 
-    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+    # Anchored to this file, not the working directory: <repo>/.env from wherever the API starts.
+    model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
 
     database_url: str = "postgresql+psycopg://dealership:dealership@localhost:5432/dealership"
     # Required: anyone who knows this key can forge a token for any account.
