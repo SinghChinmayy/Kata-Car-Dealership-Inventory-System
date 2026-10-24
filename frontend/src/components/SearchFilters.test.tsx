@@ -98,4 +98,28 @@ describe("Search filters", () => {
       await screen.findByLabelText("Category")
     ).toHaveAccessibleDescription("Input should be a listed category");
   });
+
+  it("searches make and model together from one box", async () => {
+    const searches: URLSearchParams[] = [];
+    server.use(
+      http.get("*/api/vehicles/search", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        searches.push(params);
+        return HttpResponse.json(
+          params.has("q")
+            ? page([listing({ make: "Toyota", model: "Hilux" })])
+            : emptyPage
+        );
+      })
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.type(screen.getByLabelText("Search make or model"), "hil");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(
+      await screen.findByRole("article", { name: "Toyota Hilux" })
+    ).toBeInTheDocument();
+    expect(Object.fromEntries(searches.at(-1)!)).toEqual({ q: "hil" });
+  });
 });
