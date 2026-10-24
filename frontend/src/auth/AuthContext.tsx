@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../api/client";
 import type { TokenResponse, User } from "../api/types";
 
@@ -47,7 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [login]
   );
 
-  const logout = useCallback(() => setSession(null), []);
+  const queryClient = useQueryClient();
+  // Dropping cached data on sign-out keeps one account's results from showing to the next.
+  const logout = useCallback(() => {
+    setSession(null);
+    queryClient.clear();
+  }, [queryClient]);
 
   const value = useMemo(
     () => ({ session, login, register, logout }),
