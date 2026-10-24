@@ -667,3 +667,19 @@ def test_deleted_listings_are_hidden_from_list_and_search(
         assert response.status_code == 200
         assert response.json()["total"] == 1
         assert [listing["model"] for listing in response.json()["items"]] == ["Harrier"]
+
+
+def test_vehicle_delete_returns_not_found_for_unknown_listing(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Deleting an id with no listing behind it is a 404, not a server error."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.delete(
+            "/api/vehicles/00000000-0000-4000-8000-000000000000", headers=headers
+        )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
