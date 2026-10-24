@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://dealership:dealership@localhost:5432/dealership"
     jwt_secret: str = "change-me-in-development-only"
     jwt_access_token_minutes: int = Field(default=60, ge=1)
+    initial_admin_email: str = ""
+    initial_admin_password: str = ""
     # NoDecode hands the raw comma-separated string to split_origins instead of JSON-decoding it.
     allowed_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"]
