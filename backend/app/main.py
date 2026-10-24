@@ -97,6 +97,12 @@ class VehicleCategoriesOut(BaseModel):
     items: list[str]
 
 
+def contains_pattern(term: str) -> str:
+    """Build an ILIKE substring pattern in which the user's LIKE wildcards stay literal."""
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),  # noqa: B008
@@ -404,11 +410,11 @@ def create_app() -> FastAPI:
         make = make.strip() if make else None
         model = model.strip() if model else None
         if make:
-            conditions.append("make ILIKE :make")
-            params["make"] = f"%{make}%"
+            conditions.append("make ILIKE :make ESCAPE '\\'")
+            params["make"] = contains_pattern(make)
         if model:
-            conditions.append("model ILIKE :model")
-            params["model"] = f"%{model}%"
+            conditions.append("model ILIKE :model ESCAPE '\\'")
+            params["model"] = contains_pattern(model)
         if category is not None:
             conditions.append("category = :category")
             params["category"] = category.value
