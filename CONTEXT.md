@@ -35,7 +35,7 @@ The controlled classification assigned to a Vehicle Listing: Sedan, SUV, Hatchba
 _Avoid_: Type, body style, segment
 
 **Purchase**:
-A durable record of an authenticated Standard User acquiring exactly one unit from a Vehicle Listing, including snapshots of its paid price, make, model, and category.
+A durable record of an authenticated User Account acquiring exactly one unit from a Vehicle Listing, including snapshots of its paid price, make, model, and category.
 _Avoid_: Order, sale, transaction
 
 **Restock**:
