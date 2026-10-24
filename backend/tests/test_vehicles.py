@@ -342,3 +342,24 @@ def test_vehicle_search_rejects_min_price_above_max_price(
     assert error["code"] == "validation_error"
     assert error["fields"] == {"min_price": "Must be less than or equal to max_price."}
     UUID(error["request_id"])
+
+
+@pytest.mark.parametrize(
+    ("params", "field"),
+    [
+        ({"category": "Bus"}, "category"),
+        ({"min_price": "-1.00"}, "min_price"),
+        ({"max_price": "100.123"}, "max_price"),
+        ({"min_price": "cheap"}, "min_price"),
+    ],
+)
+def test_vehicle_search_rejects_invalid_filter_values(
+    postgres_url: str, postgres_engine, monkeypatch, params: dict[str, str], field: str
+) -> None:
+    """Out-of-vocabulary categories and malformed prices return a field-level 422."""
+    response = search_as_administrator(postgres_url, postgres_engine, monkeypatch, [], params)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == [field]
