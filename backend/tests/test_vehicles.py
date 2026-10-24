@@ -683,3 +683,26 @@ def test_vehicle_delete_returns_not_found_for_unknown_listing(
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+def test_deleting_a_deleted_listing_returns_not_found_and_keeps_the_original_audit(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A retired listing is not active, so a second delete neither succeeds nor rewrites history."""
+    use_test_database(postgres_url, monkeypatch)
+    audit_query = text("SELECT deleted_at, deleted_by FROM vehicle_listings WHERE id = :id")
+
+    with TestClient(create_app()) as client:
+        first = login_headers(client, postgres_engine, "first@example.com", administrator=True)
+        second = login_headers(client, postgres_engine, "second@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=first, json={**NEXON, "quantity": 1})
+        path = f"/api/vehicles/{created.json()['id']}"
+        client.delete(path, headers=first)
+        with postgres_engine.connect() as connection:
+            original = connection.execute(audit_query, {"id": created.json()["id"]}).one()
+        response = client.delete(path, headers=second)
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    with postgres_engine.connect() as connection:
+        assert connection.execute(audit_query, {"id": created.json()["id"]}).one() == original
