@@ -474,7 +474,7 @@ def create_app() -> FastAPI:
                 text(
                     "UPDATE vehicle_listings SET make = :make, model = :model, "
                     "category = :category, price = :price, updated_at = CURRENT_TIMESTAMP "
-                    "WHERE id = :id "
+                    "WHERE id = :id AND deleted_at IS NULL "
                     "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
                 ),
                 {
