@@ -456,6 +456,7 @@ def create_app() -> FastAPI:
     def search_vehicle_listings(
         _: UserOut = Depends(get_current_user),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
+        q: Optional[str] = None,
         make: Optional[str] = None,
         model: Optional[str] = None,
         category: Optional[VehicleCategory] = None,
@@ -479,8 +480,13 @@ def create_app() -> FastAPI:
         conditions: list[str] = []
         params: dict[str, Any] = {}
         # Blank form fields arrive as empty or whitespace-only terms; they mean "no filter".
+        q = q.strip() if q else None
         make = make.strip() if make else None
         model = model.strip() if model else None
+        if q:
+            # The SPA's single box: match anywhere in "make model".
+            conditions.append("(make || ' ' || model) ILIKE :q ESCAPE '\\'")
+            params["q"] = contains_pattern(q)
         if make:
             conditions.append("make ILIKE :make ESCAPE '\\'")
             params["make"] = contains_pattern(make)
