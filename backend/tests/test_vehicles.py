@@ -645,3 +645,25 @@ def test_deletion_audit_columns_are_set_together(
             text("UPDATE vehicle_listings SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id"),
             {"id": created.json()["id"]},
         )
+
+
+def test_deleted_listings_are_hidden_from_list_and_search(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Normal catalogue reads only ever show active listings."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        retired = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "model": "Harrier", "quantity": 1}
+        )
+        client.delete(f"/api/vehicles/{retired.json()['id']}", headers=headers)
+        listed = client.get("/api/vehicles", headers=headers)
+        searched = client.get("/api/vehicles/search", headers=headers, params={"make": "tata"})
+
+    for response in (listed, searched):
+        assert response.status_code == 200
+        assert response.json()["total"] == 1
+        assert [listing["model"] for listing in response.json()["items"]] == ["Harrier"]
