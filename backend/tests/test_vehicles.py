@@ -1068,3 +1068,37 @@ def test_failed_stock_adjustment_rolls_back_the_restock(
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
     assert listed.json()["items"][0]["quantity"] == 2
+
+
+def test_restock_of_a_missing_or_deleted_listing_is_not_found(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Only active listings can be restocked, and nothing is recorded otherwise."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        listing_id = created.json()["id"]
+        client.delete(f"/api/vehicles/{listing_id}", headers=headers)
+        deleted_response = client.post(
+            f"/api/vehicles/{listing_id}/restock", headers=headers, json={"quantity": 5}
+        )
+        missing_response = client.post(
+            "/api/vehicles/00000000-0000-4000-8000-000000000000/restock",
+            headers=headers,
+            json={"quantity": 5},
+        )
+
+    for response in (deleted_response, missing_response):
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+    with postgres_engine.connect() as connection:
+        quantity = connection.execute(
+            text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
+        ).scalar_one()
+        adjustments = connection.execute(
+            text("SELECT COUNT(*) FROM stock_adjustments")
+        ).scalar_one()
+    assert quantity == 2
+    assert adjustments == 0
