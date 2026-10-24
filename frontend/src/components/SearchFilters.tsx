@@ -51,7 +51,7 @@ export function SearchFilters({
     <form
       role="search"
       onSubmit={handleSubmit}
-      className="mt-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 sm:grid-cols-2 lg:grid-cols-6"
+      className="mt-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]"
     >
       <TextField
         label="Make"
@@ -86,7 +86,7 @@ export function SearchFilters({
         error={errors.max_price}
         onChange={(event) => set("max_price")(event.target.value)}
       />
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
         <button type="submit" className={`${primaryButton} flex-1`}>
           Search
         </button>

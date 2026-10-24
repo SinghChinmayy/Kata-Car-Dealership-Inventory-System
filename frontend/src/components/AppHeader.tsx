@@ -19,7 +19,7 @@ export function AppHeader() {
             )}
             <button
               type="button"
-              className={`${secondaryButton} py-1.5`}
+              className={`${secondaryButton} whitespace-nowrap py-1.5`}
               onClick={logout}
             >
               Log out
