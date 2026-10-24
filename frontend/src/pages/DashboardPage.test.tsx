@@ -121,4 +121,40 @@ describe("Dashboard", () => {
     ).toBeInTheDocument();
     expect(calls).toBe(2);
   });
+
+  it("allows one purchase at a time across all cards", async () => {
+    let finishPurchase: () => void = () => {};
+    const swift = listing({
+      id: "a1b2c3d4-0000-4000-8000-000000000002",
+      make: "Maruti",
+      model: "Swift"
+    });
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(page([listing(), swift]))
+      ),
+      http.post("*/api/vehicles/:id/purchase", async () => {
+        await new Promise<void>((resolve) => (finishPurchase = resolve));
+        return HttpResponse.json(listing({ quantity: 2 }));
+      })
+    );
+    const { user } = await renderSignedIn(buyer);
+    const nexon = await screen.findByRole("article", { name: "Tata Nexon" });
+    const swiftCard = screen.getByRole("article", { name: "Maruti Swift" });
+
+    await user.click(within(nexon).getByRole("button", { name: "Purchase" }));
+
+    expect(
+      within(nexon).getByRole("button", { name: "Purchase" })
+    ).toBeDisabled();
+    expect(
+      within(swiftCard).getByRole("button", { name: "Purchase" })
+    ).toBeDisabled();
+    finishPurchase();
+    await waitFor(() =>
+      expect(
+        within(swiftCard).getByRole("button", { name: "Purchase" })
+      ).toBeEnabled()
+    );
+  });
 });
