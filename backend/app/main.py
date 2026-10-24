@@ -28,6 +28,8 @@ from app.errors import DomainError
 logger = logging.getLogger("app")
 # Columns that make up VehicleListingOut, in every SELECT and RETURNING clause.
 LISTING_COLUMNS = "id, make, model, category, price, quantity, created_at, updated_at"
+# Stock Quantity is a PostgreSQL INTEGER; restocks may not push it past this.
+MAX_STOCK_QUANTITY = 2_147_483_647
 password_hasher = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -593,15 +595,27 @@ def create_app() -> FastAPI:
                 text(
                     "UPDATE vehicle_listings SET quantity = quantity + :quantity "
                     "WHERE id = :id AND deleted_at IS NULL "
+                    "AND quantity <= :max_stock - :quantity "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
-                {"id": listing_id, "quantity": payload.quantity},
+                {"id": listing_id, "quantity": payload.quantity, "max_stock": MAX_STOCK_QUANTITY},
             )
             .mappings()
             .one_or_none()
         )
         if listing is None:
-            raise listing_not_found()
+            is_active = session.execute(
+                text("SELECT 1 FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
+                {"id": listing_id},
+            ).scalar_one_or_none()
+            if is_active is None:
+                raise listing_not_found()
+            raise DomainError(
+                422,
+                "validation_error",
+                "Request validation failed.",
+                {"quantity": "Would exceed the maximum stock quantity."},
+            )
         # Same transaction as the increment: stock never rises without an audit record.
         session.execute(
             text(
