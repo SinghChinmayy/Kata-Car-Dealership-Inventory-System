@@ -558,3 +558,19 @@ def test_vehicle_update_rejects_fields_outside_the_catalogue(
     assert error["code"] == "validation_error"
     assert list(error["fields"]) == list(extra)
     assert listed.json()["items"][0]["quantity"] == 3
+
+
+def test_vehicle_update_rejects_a_malformed_listing_id(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A path id that is not a UUID is invalid input, reported under its bare field name."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.put("/api/vehicles/not-a-uuid", headers=headers, json=NEXON)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == ["listing_id"]
