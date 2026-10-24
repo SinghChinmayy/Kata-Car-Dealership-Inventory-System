@@ -518,6 +518,33 @@ def create_app() -> FastAPI:
         session.commit()
         return Response(status_code=204)
 
+    @app.post(
+        "/api/vehicles/{listing_id}/purchase", response_model=VehicleListingOut, tags=["inventory"]
+    )
+    def purchase_vehicle_listing(
+        listing_id: UUID,
+        _: UserOut = Depends(get_current_user),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> VehicleListingOut:
+        """Buy one unit of a listing."""
+        # Naive read-then-write; the concurrency test will show why this oversells.
+        quantity = session.execute(
+            text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
+        ).scalar_one()
+        listing = (
+            session.execute(
+                text(
+                    "UPDATE vehicle_listings SET quantity = :quantity WHERE id = :id "
+                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                ),
+                {"id": listing_id, "quantity": quantity - 1},
+            )
+            .mappings()
+            .one()
+        )
+        session.commit()
+        return VehicleListingOut(**listing)
+
     return app
 
 

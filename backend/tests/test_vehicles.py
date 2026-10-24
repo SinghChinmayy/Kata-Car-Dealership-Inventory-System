@@ -749,3 +749,22 @@ def test_purchase_takes_one_unit_and_returns_the_updated_listing(
     assert purchased["id"] == original["id"]
     assert purchased["quantity"] == 2
     assert purchased["updated_at"] == original["updated_at"]
+
+
+def test_purchase_is_open_to_any_authenticated_account(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Administrators may buy like anyone else; anonymous callers cannot."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 3})
+        path = f"/api/vehicles/{created.json()['id']}/purchase"
+        anonymous_response = client.post(path)
+        admin_response = client.post(path, headers=admin)
+
+    assert anonymous_response.status_code == 401
+    assert anonymous_response.json()["error"]["code"] == "unauthorized"
+    assert admin_response.status_code == 200
+    assert admin_response.json()["quantity"] == 2
