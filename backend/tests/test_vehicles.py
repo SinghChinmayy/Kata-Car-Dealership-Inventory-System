@@ -1163,3 +1163,19 @@ def test_vehicle_creation_caps_the_starting_quantity(
     assert response.status_code == status
     if status == 422:
         assert list(response.json()["error"]["fields"]) == ["quantity"]
+
+
+@pytest.mark.parametrize("path", ["/api/vehicles", "/api/vehicles/search"])
+@pytest.mark.parametrize("page_number", ["10001", "999999999999999999"])
+def test_listing_pages_beyond_the_limit_are_rejected(
+    postgres_url: str, postgres_engine, monkeypatch, path: str, page_number: str
+) -> None:
+    """Page numbers stop at 10,000 so a hand-edited link cannot overflow the database offset."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        response = client.get(path, headers=headers, params={"page": page_number})
+
+    assert response.status_code == 422
+    assert list(response.json()["error"]["fields"]) == ["page"]
