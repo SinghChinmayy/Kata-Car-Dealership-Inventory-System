@@ -28,6 +28,8 @@ class JsonFormatter(logging.Formatter):
         }
         extra = getattr(record, "structured", {})
         payload.update(redact(extra))
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
 
 
@@ -44,3 +46,8 @@ def configure_logging() -> None:
 
 def log_event(logger: logging.Logger, message: str, **fields: Any) -> None:
     logger.info(message, extra={"structured": redact(fields)})
+
+
+def log_failure(logger: logging.Logger, message: str, exc: BaseException, **fields: Any) -> None:
+    """Log an unexpected error at error level with its stack trace for debugging."""
+    logger.error(message, exc_info=exc, extra={"structured": redact(fields)})

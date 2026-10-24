@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import get_settings
-from app.core.logging import configure_logging, log_event
+from app.core.logging import configure_logging, log_event, log_failure
 from app.core.request_context import request_id_from
 from app.db.session import get_db_session
 from app.errors import DomainError
@@ -244,13 +244,6 @@ def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
     app = FastAPI(title="Car Dealership Inventory API", version="0.1.0")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_cors_origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-    )
 
     @app.middleware("http")
     async def add_request_context(request: Request, call_next: Any) -> Any:
@@ -261,7 +254,19 @@ def create_app() -> FastAPI:
             request_id = str(uuid4())
         request.state.request_id = request_id
         started = time.perf_counter()
-        response = await call_next(request)
+        # Crashes are answered here, inside CORS, so even a 500 is traceable and readable.
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            log_failure(
+                logger, "request.failed", exc, request_id=request_id, error=type(exc).__name__
+            )
+            response = error_response(
+                request=request,
+                status_code=500,
+                code="internal_error",
+                message="An unexpected error occurred.",
+            )
         response.headers["X-Request-ID"] = request_id
         log_event(
             logger,
@@ -274,6 +279,15 @@ def create_app() -> FastAPI:
             user_id=getattr(request.state, "user_id", None),
         )
         return response
+
+    # Added after the request-context middleware so CORS wraps it and decorates its 500s.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    )
 
     @app.exception_handler(DomainError)
     async def handle_domain_error(request: Request, exc: DomainError) -> JSONResponse:
@@ -310,18 +324,6 @@ def create_app() -> FastAPI:
         code, message = status_codes.get(exc.status_code, ("http_error", "The request failed."))
         return error_response(
             request=request, status_code=exc.status_code, code=code, message=message
-        )
-
-    @app.exception_handler(Exception)
-    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        log_event(
-            logger, "request.failed", request_id=request_id_from(request), error=type(exc).__name__
-        )
-        return error_response(
-            request=request,
-            status_code=500,
-            code="internal_error",
-            message="An unexpected error occurred.",
         )
 
     @app.get("/health", tags=["operations"])
