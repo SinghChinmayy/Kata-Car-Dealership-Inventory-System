@@ -1126,3 +1126,40 @@ def test_restock_beyond_the_stock_limit_is_rejected(
     assert error["code"] == "validation_error"
     assert list(error["fields"]) == ["quantity"]
     assert listed.json()["items"][0]["quantity"] == 2
+
+
+def test_concurrent_restocks_and_purchases_keep_stock_consistent(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Racing restocks and purchases lose no update and leave stock matching the audit trail."""
+    use_test_database(postgres_url, monkeypatch)
+    pairs = 10
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 0})
+        listing_path = f"/api/vehicles/{created.json()['id']}"
+        start = threading.Barrier(pairs * 2)
+
+        def act(index: int) -> tuple[str, int]:
+            start.wait()
+            if index % 2:
+                restocked = client.post(
+                    f"{listing_path}/restock", headers=headers, json={"quantity": 1}
+                )
+                return "restock", restocked.status_code
+            return "purchase", client.post(f"{listing_path}/purchase", headers=headers).status_code
+
+        with ThreadPoolExecutor(max_workers=pairs * 2) as pool:
+            outcomes = list(pool.map(act, range(pairs * 2)))
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert outcomes.count(("restock", 200)) == pairs
+    sold = outcomes.count(("purchase", 200))
+    assert sold + outcomes.count(("purchase", 409)) == pairs
+    assert listed.json()["items"][0]["quantity"] == pairs - sold
+    with postgres_engine.connect() as connection:
+        assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == sold
+        assert (
+            connection.execute(text("SELECT COUNT(*) FROM stock_adjustments")).scalar_one() == pairs
+        )
