@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { errorMessage } from "../api/client";
+import { errorMessage, fieldErrors } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormAlert } from "../components/FormAlert";
@@ -14,16 +14,21 @@ export function RegisterPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    setFields({});
     try {
       await register(email, password);
       navigate("/", { replace: true });
     } catch (caught) {
-      setError(errorMessage(caught));
+      const byField = fieldErrors(caught);
+      // Errors that belong to an input are shown there; only the rest go in the alert.
+      if (Object.keys(byField).length > 0) setFields(byField);
+      else setError(errorMessage(caught));
     } finally {
       setSubmitting(false);
     }
@@ -39,6 +44,7 @@ export function RegisterPage() {
           autoComplete="email"
           required
           value={email}
+          error={fields.email}
           onChange={(event) => setEmail(event.target.value)}
         />
         <TextField
@@ -47,6 +53,7 @@ export function RegisterPage() {
           autoComplete="new-password"
           required
           value={password}
+          error={fields.password}
           onChange={(event) => setPassword(event.target.value)}
         />
         <p className="text-xs text-slate-500">Use 12 to 128 characters.</p>

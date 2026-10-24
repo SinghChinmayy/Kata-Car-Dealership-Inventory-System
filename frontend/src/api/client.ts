@@ -60,3 +60,10 @@ export function errorMessage(error: unknown): string {
     ? error.message
     : "Something went wrong. Please try again.";
 }
+
+/** Field-level messages to show beside inputs; a duplicate email belongs on the email field. */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError)) return {};
+  if (error.code === "duplicate_email") return { email: error.message };
+  return error.fields;
+}
