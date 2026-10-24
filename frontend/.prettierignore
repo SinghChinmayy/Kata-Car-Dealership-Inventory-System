@@ -2,3 +2,6 @@ dist
 coverage
 node_modules
 reports
+playwright-report
+test-results
+blob-report
