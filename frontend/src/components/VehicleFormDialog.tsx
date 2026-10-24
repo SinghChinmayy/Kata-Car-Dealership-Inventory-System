@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { errorMessage, fieldErrors } from "../api/client";
+import { splitErrors } from "../api/client";
 import type { VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
 import { FormAlert } from "./FormAlert";
@@ -56,11 +56,13 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
       onClose();
     }
   });
-  const errors = fieldErrors(save.error);
-  const formError =
-    save.isError && Object.keys(errors).length === 0
-      ? errorMessage(save.error)
-      : null;
+  const { fields: errors, alert: formError } = splitErrors(save.error, [
+    "make",
+    "model",
+    "category",
+    "price",
+    "quantity"
+  ]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -93,6 +95,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
           required
           options={categories}
           value={form.category}
+          error={errors.category}
           onChange={(event) => set("category")(event.target.value)}
         />
         <TextField

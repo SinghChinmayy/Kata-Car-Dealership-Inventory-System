@@ -70,6 +70,7 @@ export function SearchFilters({
         placeholder="Any category"
         options={categories}
         value={filters.category ?? ""}
+        error={errors.category}
         onChange={(event) => set("category")(event.target.value)}
       />
       <TextField

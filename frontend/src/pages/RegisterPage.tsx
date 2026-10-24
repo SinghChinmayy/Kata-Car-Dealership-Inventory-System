@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { errorMessage, fieldErrors } from "../api/client";
+import { splitErrors } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormAlert } from "../components/FormAlert";
@@ -25,10 +25,12 @@ export function RegisterPage() {
       await register(email, password);
       navigate("/", { replace: true });
     } catch (caught) {
-      const byField = fieldErrors(caught);
-      // Errors that belong to an input are shown there; only the rest go in the alert.
-      if (Object.keys(byField).length > 0) setFields(byField);
-      else setError(errorMessage(caught));
+      const { fields: byField, alert } = splitErrors(caught, [
+        "email",
+        "password"
+      ]);
+      setFields(byField);
+      setError(alert);
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { errorMessage, fieldErrors } from "../api/client";
+import { splitErrors } from "../api/client";
 import { patchCachedListing } from "../api/listingCache";
 import type { VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
@@ -30,11 +30,9 @@ export function RestockDialog({ listing, onClose }: Props) {
       onClose();
     }
   });
-  const errors = fieldErrors(restock.error);
-  const formError =
-    restock.isError && Object.keys(errors).length === 0
-      ? errorMessage(restock.error)
-      : null;
+  const { fields: errors, alert: formError } = splitErrors(restock.error, [
+    "quantity"
+  ]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();

@@ -67,3 +67,26 @@ export function fieldErrors(error: unknown): Record<string, string> {
   if (error.code === "duplicate_email") return { email: error.message };
   return error.fields;
 }
+
+/**
+ * Split an API error between the inputs that can display it and a banner message, so no
+ * error is ever silently dropped: field errors without a visible input join the banner.
+ */
+export function splitErrors(
+  error: unknown,
+  shownFields: readonly string[]
+): { fields: Record<string, string>; alert: string | null } {
+  if (!error) return { fields: {}, alert: null };
+  const all = fieldErrors(error);
+  const fields: Record<string, string> = {};
+  const leftovers: string[] = [];
+  for (const [field, message] of Object.entries(all)) {
+    if (shownFields.includes(field)) fields[field] = message;
+    else leftovers.push(`${field}: ${message}`);
+  }
+  if (leftovers.length > 0) return { fields, alert: leftovers.join(" ") };
+  return {
+    fields,
+    alert: Object.keys(all).length > 0 ? null : errorMessage(error)
+  };
+}

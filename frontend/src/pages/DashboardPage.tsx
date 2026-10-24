@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ApiError, errorMessage, fieldErrors } from "../api/client";
+import { ApiError, errorMessage, splitErrors } from "../api/client";
 import { patchCachedListing } from "../api/listingCache";
 import type { ListingPage, VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
@@ -67,7 +67,10 @@ export function DashboardPage() {
     queryFn: () => api<{ items: string[] }>("/api/vehicles/categories"),
     staleTime: Infinity
   });
-  const searchErrors = fieldErrors(listings.error);
+  const { fields: searchErrors, alert: searchAlert } = splitErrors(
+    listings.error,
+    FILTER_KEYS
+  );
 
   const purchase = useMutation({
     mutationFn: (listing: VehicleListing) =>
@@ -114,9 +117,9 @@ export function DashboardPage() {
           errors={searchErrors}
           onSearch={(next) => setSearchParams(next)}
         />
-        {listings.isError && Object.keys(searchErrors).length === 0 && (
+        {searchAlert && (
           <div className="mt-6">
-            <FormAlert message={errorMessage(listings.error)} />
+            <FormAlert message={searchAlert} />
           </div>
         )}
         {listings.isPending && (
