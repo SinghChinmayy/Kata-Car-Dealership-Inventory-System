@@ -1254,3 +1254,15 @@ def test_search_q_lists_the_closest_match_first(
     )
 
     assert [listing["model"] for listing in response.json()["items"]] == ["City", "Citx"]
+
+
+def test_search_q_is_limited_to_100_characters(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Each word adds a condition, so an unbounded query is refused rather than run."""
+    response = search_as_administrator(
+        postgres_url, postgres_engine, monkeypatch, [], {"q": "a " * 51}
+    )
+
+    assert response.status_code == 422
+    assert list(response.json()["error"]["fields"]) == ["q"]
