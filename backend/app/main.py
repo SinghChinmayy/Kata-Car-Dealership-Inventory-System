@@ -26,6 +26,8 @@ from app.db.session import get_db_session
 from app.errors import DomainError
 
 logger = logging.getLogger("app")
+# Columns that make up VehicleListingOut, in every SELECT and RETURNING clause.
+LISTING_COLUMNS = "id, make, model, category, price, quantity, created_at, updated_at"
 password_hasher = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -139,7 +141,7 @@ def fetch_listing_page(
     listings = (
         session.execute(
             text(
-                "SELECT id, make, model, category, price, quantity, created_at, updated_at "
+                f"SELECT {LISTING_COLUMNS} "
                 f"FROM vehicle_listings {where}ORDER BY created_at DESC, id DESC "
                 "LIMIT :limit OFFSET :offset"
             ),
@@ -386,7 +388,7 @@ def create_app() -> FastAPI:
                 text(
                     "INSERT INTO vehicle_listings (id, make, model, category, price, quantity) "
                     "VALUES (:id, :make, :model, :category, :price, :quantity) "
-                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                    f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {
                     "id": uuid4(),
@@ -480,7 +482,7 @@ def create_app() -> FastAPI:
                     "UPDATE vehicle_listings SET make = :make, model = :model, "
                     "category = :category, price = :price, updated_at = CURRENT_TIMESTAMP "
                     "WHERE id = :id AND deleted_at IS NULL "
-                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                    f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {
                     "id": listing_id,
@@ -534,7 +536,7 @@ def create_app() -> FastAPI:
                 text(
                     "UPDATE vehicle_listings SET quantity = quantity - 1 "
                     "WHERE id = :id AND quantity > 0 AND deleted_at IS NULL "
-                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                    f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {"id": listing_id},
             )
