@@ -488,8 +488,10 @@ def create_app() -> FastAPI:
                 },
             )
             .mappings()
-            .one()
+            .one_or_none()
         )
+        if listing is None:
+            raise DomainError(404, "not_found", "The requested resource does not exist.")
         session.commit()
         return VehicleListingOut(**listing)
 
