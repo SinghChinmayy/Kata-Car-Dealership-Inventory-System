@@ -9,6 +9,8 @@ from sqlalchemy.engine import Engine
 from testcontainers.postgres import PostgresContainer
 
 ROOT = Path(__file__).resolve().parents[1]
+# A strong, test-only signing key; real environments must provide their own JWT_SECRET.
+os.environ["JWT_SECRET"] = "test-only-jwt-secret-0123456789abcdef"
 
 
 @pytest.fixture(scope="session")

@@ -7,7 +7,7 @@ This repository is a small monorepo: `backend/` contains the FastAPI API and Ale
 Prerequisites: Docker with a running daemon, [uv](https://docs.astral.sh/uv/), Node.js/npm, and Python 3.9 or newer.
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # then set JWT_SECRET, e.g. to the output of: openssl rand -hex 32
 make db-up
 cd backend && uv sync --all-groups && uv run alembic upgrade head
 uv run python -m app.scripts.seed_admin

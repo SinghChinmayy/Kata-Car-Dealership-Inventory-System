@@ -34,9 +34,10 @@ def test_cors_origins_accept_the_documented_comma_separated_format(
 
 
 def test_example_env_file_loads(monkeypatch) -> None:
-    """Copying .env.example to .env, as the README instructs, yields valid settings."""
-    for name in ("DATABASE_URL", "JWT_SECRET", "ALLOWED_CORS_ORIGINS"):
+    """Copying .env.example and setting JWT_SECRET, as the README says, gives valid settings."""
+    for name in ("DATABASE_URL", "ALLOWED_CORS_ORIGINS"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("JWT_SECRET", "s" * 32)
     example = Path(__file__).resolve().parents[2] / ".env.example"
 
     settings = Settings(_env_file=example)
