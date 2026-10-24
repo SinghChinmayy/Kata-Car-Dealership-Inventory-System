@@ -103,6 +103,43 @@ def contains_pattern(term: str) -> str:
     return f"%{escaped}%"
 
 
+def fetch_listing_page(
+    session: Session,
+    conditions: list[str],
+    params: dict[str, Any],
+    page: int,
+    page_size: int,
+) -> VehicleListingPageOut:
+    """Load one newest-first page of listings matching every condition.
+
+    Conditions are fixed SQL fragments chosen by the caller; user input only
+    ever reaches the query through bound parameters.
+    """
+    effective_page_size = min(page_size, 100)
+    where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
+    total = session.execute(
+        text(f"SELECT COUNT(*) FROM vehicle_listings {where}"), params
+    ).scalar_one()
+    listings = (
+        session.execute(
+            text(
+                "SELECT id, make, model, category, price, quantity, created_at, updated_at "
+                f"FROM vehicle_listings {where}ORDER BY created_at DESC, id DESC "
+                "LIMIT :limit OFFSET :offset"
+            ),
+            {**params, "limit": effective_page_size, "offset": (page - 1) * effective_page_size},
+        )
+        .mappings()
+        .all()
+    )
+    return VehicleListingPageOut(
+        items=[VehicleListingOut(**listing) for listing in listings],
+        total=total,
+        page=page,
+        page_size=effective_page_size,
+    )
+
+
 def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),  # noqa: B008
@@ -358,26 +395,7 @@ def create_app() -> FastAPI:
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
         """Return active catalogue listings in stable newest-first order."""
-        effective_page_size = min(page_size, 100)
-        total = session.execute(text("SELECT COUNT(*) FROM vehicle_listings")).scalar_one()
-        listings = (
-            session.execute(
-                text(
-                    "SELECT id, make, model, category, price, quantity, created_at, updated_at "
-                    "FROM vehicle_listings ORDER BY created_at DESC, id DESC "
-                    "LIMIT :limit OFFSET :offset"
-                ),
-                {"limit": effective_page_size, "offset": (page - 1) * effective_page_size},
-            )
-            .mappings()
-            .all()
-        )
-        return VehicleListingPageOut(
-            items=[VehicleListingOut(**listing) for listing in listings],
-            total=total,
-            page=page,
-            page_size=effective_page_size,
-        )
+        return fetch_listing_page(session, [], {}, page, page_size)
 
     @app.get("/api/vehicles/search", response_model=VehicleListingPageOut, tags=["vehicles"])
     def search_vehicle_listings(
@@ -403,7 +421,6 @@ def create_app() -> FastAPI:
                 "Request validation failed.",
                 {"min_price": "Must be less than or equal to max_price."},
             )
-        effective_page_size = min(page_size, 100)
         conditions: list[str] = []
         params: dict[str, Any] = {}
         # Blank form fields arrive as empty or whitespace-only terms; they mean "no filter".
@@ -424,32 +441,7 @@ def create_app() -> FastAPI:
         if max_price is not None:
             conditions.append("price <= :max_price")
             params["max_price"] = max_price
-        where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
-        total = session.execute(
-            text(f"SELECT COUNT(*) FROM vehicle_listings {where}"), params
-        ).scalar_one()
-        listings = (
-            session.execute(
-                text(
-                    "SELECT id, make, model, category, price, quantity, created_at, updated_at "
-                    f"FROM vehicle_listings {where}ORDER BY created_at DESC, id DESC "
-                    "LIMIT :limit OFFSET :offset"
-                ),
-                {
-                    **params,
-                    "limit": effective_page_size,
-                    "offset": (page - 1) * effective_page_size,
-                },
-            )
-            .mappings()
-            .all()
-        )
-        return VehicleListingPageOut(
-            items=[VehicleListingOut(**listing) for listing in listings],
-            total=total,
-            page=page,
-            page_size=effective_page_size,
-        )
+        return fetch_listing_page(session, conditions, params, page, page_size)
 
     @app.get("/api/vehicles/categories", response_model=VehicleCategoriesOut, tags=["vehicles"])
     def list_vehicle_categories(
