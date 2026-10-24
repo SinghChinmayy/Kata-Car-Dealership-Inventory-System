@@ -17,8 +17,16 @@ def main() -> None:
             text("SELECT role FROM user_accounts WHERE email = :email"), {"email": email}
         ).scalar_one_or_none()
         # Idempotent: an existing account is never re-created or given a new password.
+        if existing == "administrator":
+            print(f"Administrator {email} already exists; nothing changed.")
+            return
         if existing is not None:
-            print(f"Account {email} already exists; nothing changed.")
+            session.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE email = :email"),
+                {"email": email},
+            )
+            session.commit()
+            print(f"Existing account {email} promoted to administrator; password unchanged.")
             return
         session.execute(
             text(
