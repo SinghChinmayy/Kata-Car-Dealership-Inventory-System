@@ -61,28 +61,27 @@ def test_seed_admin_is_safe_to_run_again(
     assert "already" in capsys.readouterr().out
 
 
-def test_seed_admin_promotes_an_existing_standard_account(
-    postgres_url: str, postgres_engine, monkeypatch, capsys
+def test_seed_admin_refuses_an_email_owned_by_a_standard_account(
+    postgres_url: str, postgres_engine, monkeypatch
 ) -> None:
-    """If the configured email already registered publicly, it becomes the administrator."""
+    """Whoever registered the configured email first must not become administrator."""
     configure(monkeypatch, postgres_url)
     from fastapi.testclient import TestClient
 
-    from app.main import create_app, password_hasher
+    from app.main import create_app
     from app.scripts.seed_admin import main
 
     with TestClient(create_app()) as client:
         client.post(
             "/api/auth/register",
-            json={"email": "owner@example.com", "password": "self-chosen-password"},
+            json={"email": "owner@example.com", "password": "squatter-password"},
         )
-    main()
 
-    promoted = accounts(postgres_engine)
-    assert len(promoted) == 1
-    assert promoted[0]["role"] == "administrator"
-    assert password_hasher.verify("self-chosen-password", promoted[0]["password_hash"])
-    assert "promoted" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exited:
+        main()
+
+    assert "INITIAL_ADMIN_EMAIL" in str(exited.value)
+    assert [account["role"] for account in accounts(postgres_engine)] == ["standard_user"]
 
 
 @pytest.mark.parametrize(
