@@ -58,3 +58,27 @@ def test_seed_admin_is_safe_to_run_again(
 
     assert accounts(postgres_engine) == before
     assert "already" in capsys.readouterr().out
+
+
+def test_seed_admin_promotes_an_existing_standard_account(
+    postgres_url: str, postgres_engine, monkeypatch, capsys
+) -> None:
+    """If the configured email already registered publicly, it becomes the administrator."""
+    configure(monkeypatch, postgres_url)
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app, password_hasher
+    from app.scripts.seed_admin import main
+
+    with TestClient(create_app()) as client:
+        client.post(
+            "/api/auth/register",
+            json={"email": "owner@example.com", "password": "self-chosen-password"},
+        )
+    main()
+
+    promoted = accounts(postgres_engine)
+    assert len(promoted) == 1
+    assert promoted[0]["role"] == "administrator"
+    assert password_hasher.verify("self-chosen-password", promoted[0]["password_hash"])
+    assert "promoted" in capsys.readouterr().out
