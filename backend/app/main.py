@@ -122,6 +122,17 @@ def listing_not_found() -> DomainError:
     return DomainError(404, "not_found", "The requested resource does not exist.")
 
 
+def listing_is_active(session: Session, listing_id: UUID) -> bool:
+    """Tell apart why a conditional stock update matched no row."""
+    return (
+        session.execute(
+            text("SELECT 1 FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
+            {"id": listing_id},
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
 def contains_pattern(term: str) -> str:
     """Build an ILIKE substring pattern in which the user's LIKE wildcards stay literal."""
     escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -552,11 +563,7 @@ def create_app() -> FastAPI:
             .one_or_none()
         )
         if listing is None:
-            is_active = session.execute(
-                text("SELECT 1 FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
-                {"id": listing_id},
-            ).scalar_one_or_none()
-            if is_active is None:
+            if not listing_is_active(session, listing_id):
                 raise listing_not_found()
             raise DomainError(409, "out_of_stock", "This vehicle is out of stock.")
         # Same transaction as the decrement: either both persist or neither does.
@@ -604,11 +611,7 @@ def create_app() -> FastAPI:
             .one_or_none()
         )
         if listing is None:
-            is_active = session.execute(
-                text("SELECT 1 FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
-                {"id": listing_id},
-            ).scalar_one_or_none()
-            if is_active is None:
+            if not listing_is_active(session, listing_id):
                 raise listing_not_found()
             raise DomainError(
                 422,
