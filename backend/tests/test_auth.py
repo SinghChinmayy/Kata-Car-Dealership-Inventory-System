@@ -363,3 +363,18 @@ def test_registration_ignores_a_requested_role(postgres_url: str, monkeypatch) -
 
     assert response.status_code == 201
     assert response.json()["role"] == "standard_user"
+
+
+def test_api_exposes_no_test_only_admin_check_route(postgres_url: str, monkeypatch) -> None:
+    """Authorization is exercised through real admin routes, not a probe shipped in the API."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+    with TestClient(create_app()) as client:
+        paths = client.get("/openapi.json").json()["paths"]
+
+    assert "/api/auth/admin-check" not in paths
