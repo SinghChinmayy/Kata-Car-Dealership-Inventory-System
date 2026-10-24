@@ -591,14 +591,17 @@ def create_app() -> FastAPI:
         listing = (
             session.execute(
                 text(
-                    "UPDATE vehicle_listings SET quantity = quantity + :quantity WHERE id = :id "
+                    "UPDATE vehicle_listings SET quantity = quantity + :quantity "
+                    "WHERE id = :id AND deleted_at IS NULL "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {"id": listing_id, "quantity": payload.quantity},
             )
             .mappings()
-            .one()
+            .one_or_none()
         )
+        if listing is None:
+            raise listing_not_found()
         # Same transaction as the increment: stock never rises without an audit record.
         session.execute(
             text(
