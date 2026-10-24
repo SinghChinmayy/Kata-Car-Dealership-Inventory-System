@@ -34,6 +34,8 @@ Login and registration rate limiting is deferred. An in-process limit would not 
 
 Listings are not required to be unique by make, model, category, or price. The system treats the listing ID as the only uniqueness guarantee because the kata intentionally does not model details such as VIN, year, or trim.
 
+A new listing starts with between 0 and 100,000 units. The cap catches typing mistakes such as an extra zero. Restock can still raise stock up to the database's integer limit.
+
 Vehicle search (`GET /api/vehicles/search`) applies every supplied filter together (AND). Its open choices were resolved as follows:
 
 - `make` and `model` match case-insensitively anywhere in the value, so `xuv` and `700` both find `XUV700`. `%` and `_` in a term are matched literally rather than as wildcards.

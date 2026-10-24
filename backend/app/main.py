@@ -31,6 +31,7 @@ logger = logging.getLogger("app")
 LISTING_COLUMNS = "id, make, model, category, price, quantity, created_at, updated_at"
 # Stock Quantity is a PostgreSQL INTEGER; restocks may not push it past this.
 MAX_STOCK_QUANTITY = 2_147_483_647
+MAX_INITIAL_QUANTITY = 100_000
 password_hasher = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -82,7 +83,8 @@ class VehicleCatalogueFields(BaseModel):
 
 
 class CreateVehicleRequest(VehicleCatalogueFields):
-    quantity: int = Field(ge=0)
+    # A business cap that catches typos; restock may grow stock up to MAX_STOCK_QUANTITY.
+    quantity: int = Field(ge=0, le=MAX_INITIAL_QUANTITY)
 
 
 class UpdateVehicleRequest(VehicleCatalogueFields):
