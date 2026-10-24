@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError, errorMessage, fieldErrors } from "../api/client";
 import type { ListingPage, VehicleListing } from "../api/types";
@@ -13,8 +14,11 @@ import {
 } from "../components/SearchFilters";
 import { useToast } from "../components/Toast";
 import { VehicleCard, type AdminActions } from "../components/VehicleCard";
+import { VehicleFormDialog } from "../components/VehicleFormDialog";
 import { primaryButton } from "../components/buttonStyles";
 import { useAuth } from "../auth/AuthContext";
+
+type Dialog = { kind: "add" };
 
 export function DashboardPage() {
   const api = useApi();
@@ -22,6 +26,9 @@ export function DashboardPage() {
   const toast = useToast();
   const { session } = useAuth();
   const isAdmin = session?.user.role === "administrator";
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  // Stable so an open dialog doesn't re-run its focus effect on every render.
+  const closeDialog = useCallback(() => setDialog(null), []);
   // Wired to dialogs as each admin flow lands.
   const adminActions: AdminActions = {
     onEdit: () => {},
@@ -96,7 +103,11 @@ export function DashboardPage() {
             Available vehicles
           </h2>
           {isAdmin && (
-            <button type="button" className={primaryButton}>
+            <button
+              type="button"
+              className={primaryButton}
+              onClick={() => setDialog({ kind: "add" })}
+            >
               Add vehicle
             </button>
           )}
@@ -145,6 +156,12 @@ export function DashboardPage() {
           />
         )}
       </main>
+      {dialog?.kind === "add" && (
+        <VehicleFormDialog
+          categories={categories.data?.items ?? []}
+          onClose={closeDialog}
+        />
+      )}
     </div>
   );
 }
