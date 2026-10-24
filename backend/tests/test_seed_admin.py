@@ -42,3 +42,19 @@ def test_seed_admin_creates_the_initial_administrator(
     assert created[0]["role"] == "administrator"
     assert password_hasher.verify(ADMIN_PASSWORD, created[0]["password_hash"])
     assert "created" in capsys.readouterr().out
+
+
+def test_seed_admin_is_safe_to_run_again(
+    postgres_url: str, postgres_engine, monkeypatch, capsys
+) -> None:
+    """A second run leaves the existing administrator, including its password, untouched."""
+    configure(monkeypatch, postgres_url)
+    from app.scripts.seed_admin import main
+
+    main()
+    before = accounts(postgres_engine)
+    configure(monkeypatch, postgres_url, password="a-different-password")
+    main()
+
+    assert accounts(postgres_engine) == before
+    assert "already" in capsys.readouterr().out
