@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
@@ -57,6 +57,15 @@ export function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      <p className="mt-6 text-center text-sm text-slate-400">
+        New here?{" "}
+        <Link
+          to="/register"
+          className="font-medium text-amber-400 hover:text-amber-300"
+        >
+          Create an account
+        </Link>
+      </p>
     </AuthLayout>
   );
 }

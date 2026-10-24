@@ -14,6 +14,7 @@ type Session = { token: string; user: User };
 type AuthValue = {
   session: Session | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -35,11 +36,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession({ token, user });
   }, []);
 
+  const register = useCallback(
+    async (email: string, password: string) => {
+      await apiRequest<User>("/api/auth/register", {
+        method: "POST",
+        body: { email, password }
+      });
+      await login(email, password);
+    },
+    [login]
+  );
+
   const logout = useCallback(() => setSession(null), []);
 
   const value = useMemo(
-    () => ({ session, login, logout }),
-    [session, login, logout]
+    () => ({ session, login, register, logout }),
+    [session, login, register, logout]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
