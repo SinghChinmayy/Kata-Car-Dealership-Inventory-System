@@ -136,9 +136,8 @@ export function DashboardPage() {
               <VehicleCard
                 key={listing.id}
                 listing={listing}
-                purchasing={
-                  purchase.isPending && purchase.variables?.id === listing.id
-                }
+                // One purchase at a time: a second click anywhere waits for the first.
+                purchasing={purchase.isPending}
                 onPurchase={(selected) => purchase.mutate(selected)}
                 admin={isAdmin ? adminActions : undefined}
               />
