@@ -85,3 +85,36 @@ def test_routing_errors_use_the_standard_error_envelope(
     error = response.json()["error"]
     assert error["code"] == code
     assert error["request_id"] == response.headers["X-Request-ID"]
+
+
+def test_unexpected_errors_keep_request_id_cors_and_traceback(
+    postgres_url: str, monkeypatch, caplog
+) -> None:
+    """A crash still returns a traceable, browser-readable 500 and logs its stack trace."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    app = create_app()
+
+    @app.get("/api/test-explosion")
+    def explode() -> None:
+        raise RuntimeError("simulated failure")
+
+    with caplog.at_level(logging.INFO, logger="app"):
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.get(
+                "/api/test-explosion", headers={"Origin": "http://localhost:5173"}
+            )
+
+    assert response.status_code == 500
+    error = response.json()["error"]
+    assert error["code"] == "internal_error"
+    assert response.headers.get("X-Request-ID") == error["request_id"]
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    failures = [record for record in caplog.records if record.getMessage() == "request.failed"]
+    assert len(failures) == 1
+    assert failures[0].levelno == logging.ERROR
+    assert failures[0].exc_info is not None
