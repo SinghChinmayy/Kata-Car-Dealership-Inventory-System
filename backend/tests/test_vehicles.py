@@ -518,3 +518,21 @@ def test_vehicle_update_requires_an_administrator(
     assert standard_response.json()["error"]["code"] == "forbidden"
     assert anonymous_response.status_code == 401
     assert anonymous_response.json()["error"]["code"] == "unauthorized"
+
+
+def test_vehicle_update_returns_not_found_for_unknown_listing(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A well-formed id with no listing behind it is a 404, not a server error."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.put(
+            "/api/vehicles/00000000-0000-4000-8000-000000000000", headers=headers, json=NEXON
+        )
+
+    assert response.status_code == 404
+    error = response.json()["error"]
+    assert error["code"] == "not_found"
+    UUID(error["request_id"])
