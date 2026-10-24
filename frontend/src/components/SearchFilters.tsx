@@ -1,7 +1,13 @@
-import { useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent
+} from "react";
 import { SelectField } from "./SelectField";
 import { TextField } from "./TextField";
-import { primaryButton, secondaryButton } from "./buttonStyles";
+import { secondaryButton } from "./buttonStyles";
 
 export const FILTER_KEYS = ["q", "category", "min_price", "max_price"] as const;
 
@@ -14,7 +20,20 @@ type Props = {
   onSearch: (filters: Filters) => void;
 };
 
-/** Filter bar; the dashboard keeps the submitted filters in the URL. */
+/** Wait this long after the last keystroke before searching. */
+export const SEARCH_DELAY_MS = 300;
+
+const filled = (filters: Filters): Filters =>
+  // Only filled filters are sent; blank ones mean "any".
+  Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value && value.trim() !== "")
+  );
+
+/**
+ * Filter bar that searches as you type. Text and price changes are sent after a short
+ * pause, a category choice or Enter applies immediately, and the dashboard mirrors the
+ * applied filters in the URL.
+ */
 export function SearchFilters({
   initial,
   categories,
@@ -22,23 +41,50 @@ export function SearchFilters({
   onSearch
 }: Props) {
   const [filters, setFilters] = useState<Filters>(initial);
+  // What the URL already reflects; avoids re-sending it and detects back/forward.
+  const applied = useRef(JSON.stringify(filled(initial)));
+
+  const apply = useCallback(
+    (next: Filters) => {
+      const key = JSON.stringify(filled(next));
+      if (key === applied.current) return;
+      applied.current = key;
+      onSearch(filled(next));
+    },
+    [onSearch]
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => apply(filters), SEARCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [filters, apply]);
+
+  // Back/forward changed the URL: show those filters instead of the typed ones.
+  const initialKey = JSON.stringify(filled(initial));
+  useEffect(() => {
+    if (initialKey !== applied.current) {
+      applied.current = initialKey;
+      setFilters(JSON.parse(initialKey) as Filters);
+    }
+  }, [initialKey]);
+
   const set = (key: keyof Filters) => (value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    // Only filled filters are sent; blank ones mean "any".
-    const filled = Object.fromEntries(
-      Object.entries(filters).filter(
-        ([, value]) => value && value.trim() !== ""
-      )
-    );
-    onSearch(filled);
+    apply(filters);
+  }
+
+  function handleCategory(value: string) {
+    const next = { ...filters, category: value };
+    setFilters(next);
+    apply(next);
   }
 
   function handleClear() {
     setFilters({});
-    onSearch({});
+    apply({});
   }
 
   return (
@@ -65,7 +111,7 @@ export function SearchFilters({
         options={categories}
         value={filters.category ?? ""}
         error={errors.category}
-        onChange={(event) => set("category")(event.target.value)}
+        onChange={(event) => handleCategory(event.target.value)}
       />
       <TextField
         label="Min price (₹)"
@@ -88,9 +134,6 @@ export function SearchFilters({
         onChange={(event) => set("max_price")(event.target.value)}
       />
       <div className="flex gap-2">
-        <button type="submit" className={primaryButton}>
-          Search
-        </button>
         <button type="button" className={secondaryButton} onClick={handleClear}>
           Clear
         </button>

@@ -59,6 +59,12 @@ export function DashboardPage() {
       })
   });
 
+  // Live search fires often; replace the history entry instead of stacking one per pause.
+  const onSearch = useCallback(
+    (next: Filters) => setSearchParams(next, { replace: true }),
+    [setSearchParams]
+  );
+
   function goToPage(next: number) {
     setSearchParams({ ...filters, page: String(next) });
   }
@@ -119,11 +125,10 @@ export function DashboardPage() {
           )}
         </div>
         <SearchFilters
-          key={new URLSearchParams(filters).toString()}
           initial={filters}
           categories={categories.data?.items ?? []}
           errors={searchErrors}
-          onSearch={(next) => setSearchParams(next)}
+          onSearch={onSearch}
         />
         {searchAlert && (
           <div className="mt-6">

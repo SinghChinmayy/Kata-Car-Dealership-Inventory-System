@@ -45,11 +45,10 @@ test("administrator lists a vehicle and a new buyer purchases the last unit", as
     0
   );
 
-  // The buyer finds the car by make and buys it.
+  // The buyer finds the car by make (results update as they type) and buys it.
   const search = page.getByRole("search");
   await search.getByLabel("Search make or model").fill(make);
-  await search.getByRole("button", { name: "Search" }).click();
-  await expect(page).toHaveURL(/make=/);
+  await expect(page).toHaveURL(/q=/);
   const card = page.getByRole("article", { name: carName });
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(card).toBeVisible();

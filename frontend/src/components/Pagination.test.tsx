@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { buyer, listing, page } from "../test/fixtures";
@@ -23,7 +23,8 @@ describe("Pagination", () => {
     );
     const { user } = await renderSignedIn(buyer);
     await user.type(screen.getByLabelText("Search make or model"), "tata");
-    await user.click(screen.getByRole("button", { name: "Search" }));
+    // Live search sends the typed text after a short pause.
+    await waitFor(() => expect(searches.at(-1)?.get("q")).toBe("tata"));
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();

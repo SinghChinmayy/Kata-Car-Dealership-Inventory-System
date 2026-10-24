@@ -46,7 +46,6 @@ describe("App", () => {
     );
 
     await user.type(screen.getByLabelText("Search make or model"), "tata");
-    await user.click(screen.getByRole("button", { name: "Search" }));
 
     expect(
       await screen.findByRole("heading", { name: "Sign in" })

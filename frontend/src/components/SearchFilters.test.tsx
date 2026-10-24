@@ -23,16 +23,17 @@ describe("Search filters", () => {
     await user.type(screen.getByLabelText("Search make or model"), "ta");
     await user.selectOptions(await screen.findByLabelText("Category"), "SUV");
     await user.type(screen.getByLabelText("Min price (₹)"), "1000000");
-    await user.click(screen.getByRole("button", { name: "Search" }));
 
     expect(
       await screen.findByRole("article", { name: "Tata Nexon" })
     ).toBeInTheDocument();
-    expect(Object.fromEntries(searches.at(-1)!)).toEqual({
-      q: "ta",
-      category: "SUV",
-      min_price: "1000000"
-    });
+    await waitFor(() =>
+      expect(Object.fromEntries(searches.at(-1)!)).toEqual({
+        q: "ta",
+        category: "SUV",
+        min_price: "1000000"
+      })
+    );
 
     await user.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -57,11 +58,12 @@ describe("Search filters", () => {
 
     await user.type(screen.getByLabelText("Min price (₹)"), "900000");
     await user.type(screen.getByLabelText("Max price (₹)"), "100000");
-    await user.click(screen.getByRole("button", { name: "Search" }));
 
-    expect(
-      await screen.findByLabelText("Min price (₹)")
-    ).toHaveAccessibleDescription("Must be less than or equal to max_price.");
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Min price (₹)")
+      ).toHaveAccessibleDescription("Must be less than or equal to max_price.")
+    );
   });
 
   it("never hides an error that has no matching filter box", async () => {
@@ -92,7 +94,6 @@ describe("Search filters", () => {
     const { user } = await renderSignedIn(buyer);
 
     await user.selectOptions(await screen.findByLabelText("Category"), "SUV");
-    await user.click(screen.getByRole("button", { name: "Search" }));
 
     expect(
       await screen.findByLabelText("Category")
@@ -115,7 +116,6 @@ describe("Search filters", () => {
     const { user } = await renderSignedIn(buyer);
 
     await user.type(screen.getByLabelText("Search make or model"), "hil");
-    await user.click(screen.getByRole("button", { name: "Search" }));
 
     expect(
       await screen.findByRole("article", { name: "Toyota Hilux" })
