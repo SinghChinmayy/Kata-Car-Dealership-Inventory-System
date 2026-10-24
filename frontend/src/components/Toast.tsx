@@ -32,12 +32,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+        className="pointer-events-none fixed bottom-6 left-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2"
       >
         {toast && (
           <p
             key={toast.id}
-            className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 shadow-2xl"
+            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-lg"
           >
             {toast.message}
           </p>

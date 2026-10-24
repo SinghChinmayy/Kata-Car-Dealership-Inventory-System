@@ -4,7 +4,7 @@ export function FormAlert({ message }: { message: string | null }) {
   return (
     <p
       role="alert"
-      className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
+      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
     >
       {message}
     </p>

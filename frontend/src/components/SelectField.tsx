@@ -1,10 +1,13 @@
 import { useId, type SelectHTMLAttributes } from "react";
+import { fieldControl, fieldError, fieldLabel } from "./fieldStyles";
 
 type Props = SelectHTMLAttributes<HTMLSelectElement> & {
   label: string;
   options: string[];
   placeholder: string;
   error?: string;
+  /** Keep the label for assistive technology but hide it visually (compact rows). */
+  hideLabel?: boolean;
 };
 
 /** Labelled dropdown that shows a field-level error from the API beneath it. */
@@ -13,6 +16,7 @@ export function SelectField({
   options,
   placeholder,
   error,
+  hideLabel = false,
   className = "",
   ...select
 }: Props) {
@@ -20,14 +24,14 @@ export function SelectField({
   const errorId = `${id}-error`;
   return (
     <div className={className}>
-      <label htmlFor={id} className="block text-sm font-medium text-slate-300">
+      <label htmlFor={id} className={hideLabel ? "sr-only" : fieldLabel}>
         {label}
       </label>
       <select
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 aria-[invalid=true]:border-rose-500"
+        className={`${fieldControl} pr-8 ${hideLabel ? "" : "mt-1.5"}`}
         {...select}
       >
         <option value="">{placeholder}</option>
@@ -38,7 +42,7 @@ export function SelectField({
         ))}
       </select>
       {error && (
-        <p id={errorId} className="mt-1 text-sm text-rose-400">
+        <p id={errorId} className={fieldError}>
           {error}
         </p>
       )}

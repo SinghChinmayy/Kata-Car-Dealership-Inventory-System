@@ -5,7 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormAlert } from "../components/FormAlert";
 import { TextField } from "../components/TextField";
-import { primaryButton } from "../components/buttonStyles";
+import { primaryButton, textLink } from "../components/buttonStyles";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -57,12 +57,9 @@ export function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-400">
+      <p className="mt-6 text-center text-sm text-zinc-500">
         New here?{" "}
-        <Link
-          to="/register"
-          className="font-medium text-amber-400 hover:text-amber-300"
-        >
+        <Link to="/register" className={textLink}>
           Create an account
         </Link>
       </p>

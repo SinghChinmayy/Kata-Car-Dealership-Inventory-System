@@ -13,7 +13,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: Props) {
   return (
     <nav
       aria-label="Result pages"
-      className="mt-8 flex items-center justify-center gap-4 text-sm text-slate-300"
+      className="mt-8 flex items-center justify-center gap-3 text-sm text-zinc-500"
     >
       <button
         type="button"
@@ -23,7 +23,7 @@ export function Pagination({ page, pageSize, total, onPageChange }: Props) {
       >
         Previous
       </button>
-      <span>
+      <span className="tabular-nums">
         Page {page} of {pages}
       </span>
       <button

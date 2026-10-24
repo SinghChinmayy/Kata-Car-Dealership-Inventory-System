@@ -19,15 +19,18 @@ export function Modal({ title, onClose, children }: Props) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-950/40 p-4">
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl"
+        className="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl"
       >
-        <h2 id={titleId} className="text-xl font-semibold text-white">
+        <h2
+          id={titleId}
+          className="text-lg font-semibold tracking-tight text-zinc-900"
+        >
           {title}
         </h2>
         {children}

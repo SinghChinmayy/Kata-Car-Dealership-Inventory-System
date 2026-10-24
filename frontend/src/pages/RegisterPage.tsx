@@ -5,7 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
 import { FormAlert } from "../components/FormAlert";
 import { TextField } from "../components/TextField";
-import { primaryButton } from "../components/buttonStyles";
+import { primaryButton, textLink } from "../components/buttonStyles";
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -58,7 +58,7 @@ export function RegisterPage() {
           error={fields.password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <p className="text-xs text-slate-500">Use 12 to 128 characters.</p>
+        <p className="text-xs text-zinc-500">Use 12 to 128 characters.</p>
         <button
           type="submit"
           className={`${primaryButton} w-full`}
@@ -67,12 +67,9 @@ export function RegisterPage() {
           {submitting ? "Creating account…" : "Create account"}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-400">
+      <p className="mt-6 text-center text-sm text-zinc-500">
         Already registered?{" "}
-        <Link
-          to="/login"
-          className="font-medium text-amber-400 hover:text-amber-300"
-        >
+        <Link to="/login" className={textLink}>
           Sign in
         </Link>
       </p>

@@ -42,7 +42,7 @@ export function RestockDialog({ listing, onClose }: Props) {
   return (
     <Modal title={`Restock ${name}`} onClose={onClose}>
       <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-zinc-500">
           Currently {listing.quantity} in stock.
         </p>
         <FormAlert message={formError} />
@@ -56,7 +56,7 @@ export function RestockDialog({ listing, onClose }: Props) {
           error={errors.quantity}
           onChange={(event) => setQuantity(event.target.value)}
         />
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Cancel
           </button>

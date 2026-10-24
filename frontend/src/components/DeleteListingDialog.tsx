@@ -27,11 +27,11 @@ export function DeleteListingDialog({ listing, onClose }: Props) {
 
   return (
     <Modal title={`Delete ${name}?`} onClose={onClose}>
-      <p className="mt-3 text-slate-300">
+      <p className="mt-2 text-sm leading-6 text-zinc-600">
         It will disappear from the inventory and can no longer be bought or
         restocked. Its sales history is kept.
       </p>
-      <div className="mt-4">
+      <div className="mt-4 empty:hidden">
         <FormAlert
           message={remove.isError ? errorMessage(remove.error) : null}
         />

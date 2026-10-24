@@ -51,23 +51,31 @@ export function SearchFilters({
     <form
       role="search"
       onSubmit={handleSubmit}
-      className="mt-6 grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]"
+      className="mt-6 flex flex-wrap items-start gap-2"
     >
       <TextField
         label="Make"
+        hideLabel
+        placeholder="Make"
+        className="min-w-0 flex-[2_1_9rem]"
         value={filters.make ?? ""}
         error={errors.make}
         onChange={(event) => set("make")(event.target.value)}
       />
       <TextField
         label="Model"
+        hideLabel
+        placeholder="Model"
+        className="min-w-0 flex-[2_1_9rem]"
         value={filters.model ?? ""}
         error={errors.model}
         onChange={(event) => set("model")(event.target.value)}
       />
       <SelectField
         label="Category"
+        hideLabel
         placeholder="Any category"
+        className="min-w-0 basis-full sm:w-44 sm:flex-none"
         options={categories}
         value={filters.category ?? ""}
         error={errors.category}
@@ -75,6 +83,9 @@ export function SearchFilters({
       />
       <TextField
         label="Min price (₹)"
+        hideLabel
+        placeholder="Min ₹"
+        className="min-w-0 flex-[1_1_6rem] sm:w-28 sm:flex-none"
         inputMode="decimal"
         value={filters.min_price ?? ""}
         error={errors.min_price}
@@ -82,13 +93,16 @@ export function SearchFilters({
       />
       <TextField
         label="Max price (₹)"
+        hideLabel
+        placeholder="Max ₹"
+        className="min-w-0 flex-[1_1_6rem] sm:w-28 sm:flex-none"
         inputMode="decimal"
         value={filters.max_price ?? ""}
         error={errors.max_price}
         onChange={(event) => set("max_price")(event.target.value)}
       />
-      <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-1">
-        <button type="submit" className={`${primaryButton} flex-1`}>
+      <div className="flex gap-2">
+        <button type="submit" className={primaryButton}>
           Search
         </button>
         <button type="button" className={secondaryButton} onClick={handleClear}>

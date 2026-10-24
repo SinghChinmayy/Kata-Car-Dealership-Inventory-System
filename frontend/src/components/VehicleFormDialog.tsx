@@ -72,7 +72,8 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
   return (
     <Modal title={listing ? "Edit vehicle" : "Add vehicle"} onClose={onClose}>
       <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-        <div className="sm:col-span-2">
+        {/* empty:hidden drops the grid gap when there is no alert. */}
+        <div className="empty:hidden sm:col-span-2">
           <FormAlert message={formError} />
         </div>
         <TextField
@@ -118,7 +119,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             onChange={(event) => set("quantity")(event.target.value)}
           />
         )}
-        <div className="flex justify-end gap-2 sm:col-span-2">
+        <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Cancel
           </button>

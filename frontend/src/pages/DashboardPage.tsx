@@ -95,17 +95,25 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen">
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-white">
-            Available vehicles
-          </h2>
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-zinc-900">
+              Inventory
+            </h2>
+            <p className="mt-0.5 text-sm text-zinc-500">
+              {listings.data
+                ? `${listings.data.total} ${listings.data.total === 1 ? "vehicle" : "vehicles"}`
+                : "\u00a0"}
+            </p>
+          </div>
           {isAdmin && (
             <button
               type="button"
               className={primaryButton}
               onClick={() => setDialog({ kind: "add" })}
             >
+              <PlusIcon />
               Add vehicle
             </button>
           )}
@@ -123,10 +131,10 @@ export function DashboardPage() {
           </div>
         )}
         {listings.isPending && (
-          <p className="mt-6 text-slate-400">Loading vehicles…</p>
+          <p className="mt-6 text-sm text-zinc-500">Loading vehicles…</p>
         )}
         {listings.data && listings.data.items.length === 0 && (
-          <p className="mt-6 rounded-xl border border-dashed border-slate-700 p-8 text-center text-slate-400">
+          <p className="mt-6 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-500">
             No vehicles match your search.
           </p>
         )}
@@ -167,5 +175,22 @@ export function DashboardPage() {
         />
       )}
     </div>
+  );
+}
+
+/** Decorative "+" for the Add vehicle button; hidden so the button's name stays "Add vehicle". */
+function PlusIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+    >
+      <path d="M8 3.5v9M3.5 8h9" />
+    </svg>
   );
 }
