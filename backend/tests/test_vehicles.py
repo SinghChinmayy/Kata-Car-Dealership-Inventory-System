@@ -988,3 +988,35 @@ def test_restock_requires_an_administrator(postgres_url: str, postgres_engine, m
     assert standard_response.status_code == 403
     assert anonymous_response.status_code == 401
     assert listed.json()["items"][0]["quantity"] == 2
+
+
+def test_restock_records_a_stock_adjustment(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Every restock leaves a durable record of which administrator added how many, when."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        admin_id = client.get("/api/auth/me", headers=headers).json()["id"]
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        listing_id = created.json()["id"]
+        client.post(f"/api/vehicles/{listing_id}/restock", headers=headers, json={"quantity": 5})
+
+    with postgres_engine.connect() as connection:
+        adjustments = (
+            connection.execute(
+                text(
+                    "SELECT listing_id, administrator_id, quantity, adjusted_at "
+                    "FROM stock_adjustments"
+                )
+            )
+            .mappings()
+            .all()
+        )
+    assert len(adjustments) == 1
+    adjustment = adjustments[0]
+    assert str(adjustment["listing_id"]) == listing_id
+    assert str(adjustment["administrator_id"]) == admin_id
+    assert adjustment["quantity"] == 5
+    assert adjustment["adjusted_at"] is not None
