@@ -531,6 +531,8 @@ def create_app() -> FastAPI:
         quantity = session.execute(
             text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
         ).scalar_one()
+        if quantity <= 0:
+            raise DomainError(409, "out_of_stock", "This vehicle is out of stock.")
         listing = (
             session.execute(
                 text(
