@@ -152,11 +152,13 @@ def fetch_listing_page(
     params: dict[str, Any],
     page: int,
     page_size: int,
+    rank_first_by: str = "",
 ) -> VehicleListingPageOut:
-    """Load one newest-first page of listings matching every condition.
+    """Load one page of listings matching every condition, newest first.
 
-    Conditions are fixed SQL fragments chosen by the caller; user input only
-    ever reaches the query through bound parameters.
+    Conditions and rank_first_by are fixed SQL fragments chosen by the caller; user
+    input only ever reaches the query through bound parameters. rank_first_by, when
+    given, orders ahead of recency (e.g. search relevance).
     """
     effective_page_size = min(page_size, 100)
     # Retired listings stay in the table for auditing but never appear in normal reads.
@@ -168,7 +170,7 @@ def fetch_listing_page(
         session.execute(
             text(
                 f"SELECT {LISTING_COLUMNS} "
-                f"FROM vehicle_listings {where}ORDER BY created_at DESC, id DESC "
+                f"FROM vehicle_listings {where}ORDER BY {rank_first_by}created_at DESC, id DESC "
                 "LIMIT :limit OFFSET :offset"
             ),
             {**params, "limit": effective_page_size, "offset": (page - 1) * effective_page_size},
@@ -511,7 +513,12 @@ def create_app() -> FastAPI:
         if max_price is not None:
             conditions.append("price <= :max_price")
             params["max_price"] = max_price
-        return fetch_listing_page(session, conditions, params, page, page_size)
+        rank = ""
+        if q:
+            # Closest overall match to everything typed first; recency breaks ties.
+            rank = "word_similarity(:whole_q, make || ' ' || model) DESC, "
+            params["whole_q"] = q.lower()
+        return fetch_listing_page(session, conditions, params, page, page_size, rank)
 
     @app.get("/api/vehicles/categories", response_model=VehicleCategoriesOut, tags=["vehicles"])
     def list_vehicle_categories(
