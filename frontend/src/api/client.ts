@@ -53,3 +53,10 @@ export async function apiRequest<T>(
   }
   return payload as T;
 }
+
+/** A message safe to show the user for any failure, preferring the API's own wording. */
+export function errorMessage(error: unknown): string {
+  return error instanceof ApiError
+    ? error.message
+    : "Something went wrong. Please try again.";
+}
