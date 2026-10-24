@@ -380,3 +380,23 @@ def test_api_exposes_no_test_only_admin_check_route(postgres_url: str, monkeypat
         paths = client.get("/openapi.json").json()["paths"]
 
     assert "/api/auth/admin-check" not in paths
+
+
+def test_email_validation_errors_never_echo_the_submitted_value(
+    postgres_url: str, monkeypatch
+) -> None:
+    """The error contract forbids repeating submitted input, so invalid emails get one message."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/auth/register", json={"email": "a@b_c.com", "password": "valid-password"}
+        )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"] == {"email": "Enter a valid email address."}
