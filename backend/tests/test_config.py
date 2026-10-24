@@ -65,3 +65,10 @@ def test_strong_jwt_secret_is_accepted(monkeypatch) -> None:
     monkeypatch.setenv("JWT_SECRET", "s" * 32)
 
     assert Settings(_env_file=None).jwt_secret == "s" * 32
+
+
+def test_env_file_is_found_from_any_working_directory() -> None:
+    """The repository-root .env loads whether the API starts from backend/ or elsewhere."""
+    repository_root = Path(__file__).resolve().parents[2]
+
+    assert Path(Settings.model_config["env_file"]) == repository_root / ".env"
