@@ -818,33 +818,15 @@ def test_failed_purchase_record_rolls_back_the_stock_decrement(
 ) -> None:
     """Stock never drops without an audit record: a failing insert undoes the decrement."""
     use_test_database(postgres_url, monkeypatch)
-    with postgres_engine.begin() as connection:
-        connection.execute(
-            text(
-                "CREATE FUNCTION reject_purchase() RETURNS trigger LANGUAGE plpgsql AS "
-                "$$ BEGIN RAISE EXCEPTION 'purchase insert rejected for test'; END $$"
-            )
-        )
-        connection.execute(
-            text(
-                "CREATE TRIGGER reject_purchase BEFORE INSERT ON purchases "
-                "FOR EACH ROW EXECUTE FUNCTION reject_purchase()"
-            )
-        )
-    try:
-        with TestClient(create_app(), raise_server_exceptions=False) as client:
-            headers = login_headers(
-                client, postgres_engine, "admin@example.com", administrator=True
-            )
-            created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 3})
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 3})
+        with inserts_rejected(postgres_engine, "purchases"):
             response = client.post(
                 f"/api/vehicles/{created.json()['id']}/purchase", headers=headers
             )
-            listed = client.get("/api/vehicles", headers=headers)
-    finally:
-        with postgres_engine.begin() as connection:
-            connection.execute(text("DROP TRIGGER reject_purchase ON purchases"))
-            connection.execute(text("DROP FUNCTION reject_purchase()"))
+        listed = client.get("/api/vehicles", headers=headers)
 
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
