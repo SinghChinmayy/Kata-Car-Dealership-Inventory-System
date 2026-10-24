@@ -1,5 +1,52 @@
-import type { ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
+import { apiRequest } from "../api/client";
+import type { TokenResponse, User } from "../api/types";
 
+type Session = { token: string; user: User };
+
+type AuthValue = {
+  session: Session | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+};
+
+const AuthContext = createContext<AuthValue | null>(null);
+
+/** Holds the access token in memory only (ADR 0003): a browser refresh requires a new login. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  const [session, setSession] = useState<Session | null>(null);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const { access_token: token } = await apiRequest<TokenResponse>(
+      "/api/auth/login",
+      {
+        method: "POST",
+        body: { email, password }
+      }
+    );
+    const user = await apiRequest<User>("/api/auth/me", { token });
+    setSession({ token, user });
+  }, []);
+
+  const logout = useCallback(() => setSession(null), []);
+
+  const value = useMemo(
+    () => ({ session, login, logout }),
+    [session, login, logout]
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth(): AuthValue {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error("useAuth must be used inside AuthProvider");
+  return value;
 }

@@ -1,0 +1,55 @@
+/** Error details from the API's standard error envelope (docs/api-error-contract.md). */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly fields: Record<string, string> = {}
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+type RequestOptions = {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+  token?: string | null;
+  query?: Record<string, string | number | undefined>;
+};
+
+// Relative /api paths go through the Vite proxy in development; a base URL can be set for
+// split hosting. Resolving against the page origin keeps fetch happy in tests too.
+const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const url = new URL(path, baseUrl);
+  for (const [key, value] of Object.entries(options.query ?? {})) {
+    if (value !== undefined && value !== "")
+      url.searchParams.set(key, String(value));
+  }
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  if (options.token) headers.Authorization = `Bearer ${options.token}`;
+
+  const response = await fetch(url, {
+    method: options.method ?? "GET",
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+  });
+  if (response.status === 204) return undefined as T;
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error = payload?.error;
+    throw new ApiError(
+      response.status,
+      error?.code ?? "http_error",
+      error?.message ?? "The request failed.",
+      error?.fields ?? {}
+    );
+  }
+  return payload as T;
+}
