@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -58,3 +59,29 @@ def test_request_log_never_contains_bearer_token_or_password(
     output = caplog.text
     assert secret_token not in output
     assert secret_password not in output
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "status", "code"),
+    [
+        ("GET", "/api/nothing-here", 404, "not_found"),
+        ("PATCH", "/api/vehicles/00000000-0000-4000-8000-000000000000", 405, "method_not_allowed"),
+    ],
+)
+def test_routing_errors_use_the_standard_error_envelope(
+    postgres_url: str, monkeypatch, method: str, path: str, status: int, code: str
+) -> None:
+    """Unknown paths and unsupported methods follow docs/api-error-contract.md too."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    with TestClient(create_app()) as client:
+        response = client.request(method, path)
+
+    assert response.status_code == status
+    error = response.json()["error"]
+    assert error["code"] == code
+    assert error["request_id"] == response.headers["X-Request-ID"]
