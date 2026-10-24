@@ -1,5 +1,17 @@
 # Car Dealership Inventory System
 
+A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first.
+
+## Screenshots
+
+| Administrator dashboard | Adding a vehicle |
+| --- | --- |
+| ![Administrator dashboard with Add vehicle, per-card Edit, Restock and Delete, and a sold-out listing](docs/screenshots/02-admin-dashboard.png) | ![Add vehicle dialog](docs/screenshots/03-add-vehicle-dialog.png) |
+
+| Buyer search and purchase | Sign in | Phone layout |
+| --- | --- | --- |
+| ![Buyer filtering SUVs under ₹20,00,000 after buying a Tata Nexon](docs/screenshots/04-buyer-search-and-purchase.png) | ![Sign-in page](docs/screenshots/01-sign-in.png) | ![Phone layout with an out-of-stock listing and disabled Purchase button](docs/screenshots/05-mobile-out-of-stock.png) |
+
 ## Local development
 
 This repository is a small monorepo: `backend/` contains the FastAPI API and Alembic migrations, and `frontend/` contains the React/Vite SPA. PostgreSQL runs in Docker; the API and SPA run on the host.
