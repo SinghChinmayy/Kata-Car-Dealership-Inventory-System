@@ -13,6 +13,13 @@ def main() -> None:
     settings = get_settings()
     email = settings.initial_admin_email.strip().lower()
     with get_session_factory()() as session:
+        existing = session.execute(
+            text("SELECT role FROM user_accounts WHERE email = :email"), {"email": email}
+        ).scalar_one_or_none()
+        # Idempotent: an existing account is never re-created or given a new password.
+        if existing is not None:
+            print(f"Account {email} already exists; nothing changed.")
+            return
         session.execute(
             text(
                 "INSERT INTO user_accounts (id, email, password_hash, role) "
