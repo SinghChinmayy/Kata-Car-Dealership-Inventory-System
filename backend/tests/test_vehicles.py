@@ -1214,3 +1214,28 @@ def test_search_q_matches_every_word_in_any_order(
     )
 
     assert [listing["model"] for listing in response.json()["items"]] == ["Hilux"]
+
+
+@pytest.mark.parametrize(
+    ("q", "models"),
+    [("hilx", ["Hilux"]), ("toyta", ["Hilux"]), ("nexn", ["Nexon"]), ("tata nexn", ["Nexon"])],
+)
+def test_search_q_forgives_small_typos(
+    postgres_url: str, postgres_engine, monkeypatch, q: str, models: list[str]
+) -> None:
+    """A near miss still finds the car, without pulling in unrelated listings."""
+    response = search_as_administrator(
+        postgres_url, postgres_engine, monkeypatch, CATALOGUE, {"q": q}
+    )
+
+    assert [listing["model"] for listing in response.json()["items"]] == models
+
+
+def test_search_q_does_not_match_unrelated_words(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    response = search_as_administrator(
+        postgres_url, postgres_engine, monkeypatch, CATALOGUE, {"q": "zebra"}
+    )
+
+    assert response.json()["total"] == 0
