@@ -1202,3 +1202,15 @@ def test_search_q_matches_make_or_model(
 
     assert response.status_code == 200
     assert [listing["model"] for listing in response.json()["items"]] == models
+
+
+@pytest.mark.parametrize("q", ["toy hil", "hilux toyota", "  hil   toy "])
+def test_search_q_matches_every_word_in_any_order(
+    postgres_url: str, postgres_engine, monkeypatch, q: str
+) -> None:
+    """Each typed word narrows the result, wherever it appears in make or model."""
+    response = search_as_administrator(
+        postgres_url, postgres_engine, monkeypatch, CATALOGUE, {"q": q}
+    )
+
+    assert [listing["model"] for listing in response.json()["items"]] == ["Hilux"]
