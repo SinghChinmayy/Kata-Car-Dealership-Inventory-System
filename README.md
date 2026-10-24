@@ -73,7 +73,18 @@ Vehicle restock (`POST /api/vehicles/{id}/restock`) adds stock and records a Sto
 - Each restock inserts a `stock_adjustments` row (listing, administrator, quantity, time) in the same transaction as the increment. Both foreign keys use `ON DELETE RESTRICT`, and `listing_id` is indexed for a future per-listing stock history.
 - A missing or deleted listing returns `404`.
 - The increment is a single relative `UPDATE ... SET quantity = quantity + :n`, so it cannot lose a concurrent purchase or restock. A guard test races 10 restocks against 10 purchases from zero stock and checks that stock always matches the purchase and adjustment records.
-- The kata's admin UI lists only add, update, and delete. A per-listing restock control will be added to the admin UI as well, because otherwise this endpoint cannot be reached from the SPA.
+- The kata's admin UI lists only add, update, and delete. The SPA adds a per-listing restock control as well, because otherwise this endpoint could not be reached from the UI.
+
+The single-page app resolves the frontend's open choices as follows:
+
+- Routes are `/login`, `/register`, and a protected `/` dashboard. Anonymous visitors and unknown paths go to sign in; signed-in visitors skip the sign-in and registration pages. Registration signs the new account straight in.
+- The access token is held in memory only (ADR 0003), so a browser refresh requires signing in again. Any `401` on a signed-in request ends the session, clears cached data, and returns to sign in with a notice.
+- The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
+- The dashboard always uses the search endpoint. Submitted filters and the page number live in the URL, so back and forward keep them. Categories come from the API. Server validation errors appear beside the matching input.
+- Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase happens in one click with no confirmation; the button is disabled at zero stock and while its request is in flight. A sold-out conflict is announced and the results refresh.
+- Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
+- The design is a dark "showroom" theme with a single amber accent and a responsive one-to-three column grid.
+- Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. The single Playwright end-to-end journey is planned as a separate step.
 
 ## My AI Usage
 
@@ -94,3 +105,5 @@ For soft delete, Claude Code interviewed me on the response code, repeat deletes
 For purchase, the Claude Code interview covered who may buy (I chose to let Administrators purchase and had ADR 0007 updated to match), the response code, the purchases schema, whether a sale counts as an edit, and how to tell the concurrency story honestly. It built the endpoint with a deliberately naive read-then-write decrement, added the purchase record, out-of-stock and not-found cycles, and a rollback guard that uses a temporary database trigger to make the purchase insert fail. Its concurrency test then showed the naive code letting all 20 buyers take 5 units, and the atomic conditional `UPDATE` fixed it. Seeing the oversell reproduce made the value of the atomic statement concrete rather than theoretical.
 
 Before restock, I asked Claude Code to cross-reference the endpoint against the kata brief, ADRs, glossary, and TDD skill, which separated what was already decided from what was still open. The interview then settled the request body, limits (I chose no per-request cap), response, schema, concurrency proof, and the missing admin UI control. Claude Code drove four red-green cycles (restock, Stock Adjustment record with migration 0007, not-found, and integer-overflow rejection), plus guard tests for validation, authorization, rollback, and restocks racing purchases, then refactored the shared active-listing check and test trigger helper.
+
+For the frontend, Claude Code read the existing toolchain and ADRs first, then interviewed me on test tooling (I approved adding MSW and `user-event`), API routing, routes, registration flow, session expiry, search UX, card and purchase behavior, admin dialogs, visual direction, and slicing. It built the SPA one red-green cycle per behavior: sign-in, the sign-in error, registration with auto sign-in, field errors, route guards, the listing grid, purchase, search filters, pagination, session expiry, admin-only controls, and the add, edit, delete, and restock dialogs. It then ran the real stack in a browser, which surfaced two layout issues that the component tests could not see: the filter buttons overflowing at mid widths, and Log out wrapping on phones. It also found that `.env.example`'s CORS value breaks settings parsing and that the admin seed command is still a placeholder.
