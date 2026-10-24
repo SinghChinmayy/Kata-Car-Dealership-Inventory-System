@@ -845,3 +845,22 @@ def test_failed_purchase_record_rolls_back_the_stock_decrement(
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
     assert listed.json()["items"][0]["quantity"] == 3
+
+
+def test_purchase_of_an_out_of_stock_listing_is_a_conflict(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Stock never goes negative and no purchase is recorded for an empty listing."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 0})
+        response = client.post(f"/api/vehicles/{created.json()['id']}/purchase", headers=headers)
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "out_of_stock"
+    assert listed.json()["items"][0]["quantity"] == 0
+    with postgres_engine.connect() as connection:
+        assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == 0
