@@ -583,10 +583,10 @@ def create_app() -> FastAPI:
     def restock_vehicle_listing(
         listing_id: UUID,
         payload: RestockRequest,
-        _: UserOut = Depends(require_admin),  # noqa: B008
+        admin: UserOut = Depends(require_admin),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
     ) -> VehicleListingOut:
-        """Add units to a listing's stock."""
+        """Add units to a listing's stock and record who added how many."""
         # Relative increment, so a concurrent purchase or restock is never overwritten.
         listing = (
             session.execute(
@@ -598,6 +598,19 @@ def create_app() -> FastAPI:
             )
             .mappings()
             .one()
+        )
+        # Same transaction as the increment: stock never rises without an audit record.
+        session.execute(
+            text(
+                "INSERT INTO stock_adjustments (id, listing_id, administrator_id, quantity) "
+                "VALUES (:id, :listing_id, :administrator_id, :quantity)"
+            ),
+            {
+                "id": uuid4(),
+                "listing_id": listing["id"],
+                "administrator_id": admin.id,
+                "quantity": payload.quantity,
+            },
         )
         session.commit()
         return VehicleListingOut(**listing)

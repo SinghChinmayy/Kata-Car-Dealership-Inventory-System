@@ -1,5 +1,7 @@
 import threading
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -1020,3 +1022,49 @@ def test_restock_records_a_stock_adjustment(
     assert str(adjustment["administrator_id"]) == admin_id
     assert adjustment["quantity"] == 5
     assert adjustment["adjusted_at"] is not None
+
+
+@contextmanager
+def inserts_rejected(postgres_engine, table: str) -> Iterator[None]:
+    """Temporarily make every insert into a table fail, to prove transactional rollback."""
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE FUNCTION reject_insert() RETURNS trigger LANGUAGE plpgsql AS "
+                "$$ BEGIN RAISE EXCEPTION 'insert rejected for test'; END $$"
+            )
+        )
+        connection.execute(
+            text(
+                f"CREATE TRIGGER reject_insert BEFORE INSERT ON {table} "
+                "FOR EACH ROW EXECUTE FUNCTION reject_insert()"
+            )
+        )
+    try:
+        yield
+    finally:
+        with postgres_engine.begin() as connection:
+            connection.execute(text(f"DROP TRIGGER reject_insert ON {table}"))
+            connection.execute(text("DROP FUNCTION reject_insert()"))
+
+
+def test_failed_stock_adjustment_rolls_back_the_restock(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Stock never rises without an audit record: a failing insert undoes the increment."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        with inserts_rejected(postgres_engine, "stock_adjustments"):
+            response = client.post(
+                f"/api/vehicles/{created.json()['id']}/restock",
+                headers=headers,
+                json={"quantity": 5},
+            )
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "internal_error"
+    assert listed.json()["items"][0]["quantity"] == 2
