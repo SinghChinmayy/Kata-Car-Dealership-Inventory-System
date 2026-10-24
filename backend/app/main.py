@@ -371,6 +371,60 @@ def create_app() -> FastAPI:
             page_size=effective_page_size,
         )
 
+    @app.get("/api/vehicles/search", response_model=VehicleListingPageOut, tags=["vehicles"])
+    def search_vehicle_listings(
+        _: UserOut = Depends(get_current_user),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+        make: Optional[str] = None,
+        model: Optional[str] = None,
+        category: Optional[VehicleCategory] = None,
+        min_price: Optional[Decimal] = None,
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=20, ge=1),
+    ) -> VehicleListingPageOut:
+        """Return active listings matching every supplied filter, newest first."""
+        effective_page_size = min(page_size, 100)
+        conditions: list[str] = []
+        params: dict[str, Any] = {}
+        if make:
+            conditions.append("make ILIKE :make")
+            params["make"] = f"%{make}%"
+        if model:
+            conditions.append("model ILIKE :model")
+            params["model"] = f"%{model}%"
+        if category is not None:
+            conditions.append("category = :category")
+            params["category"] = category.value
+        if min_price is not None:
+            conditions.append("price >= :min_price")
+            params["min_price"] = min_price
+        where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
+        total = session.execute(
+            text(f"SELECT COUNT(*) FROM vehicle_listings {where}"), params
+        ).scalar_one()
+        listings = (
+            session.execute(
+                text(
+                    "SELECT id, make, model, category, price, quantity, created_at, updated_at "
+                    f"FROM vehicle_listings {where}ORDER BY created_at DESC, id DESC "
+                    "LIMIT :limit OFFSET :offset"
+                ),
+                {
+                    **params,
+                    "limit": effective_page_size,
+                    "offset": (page - 1) * effective_page_size,
+                },
+            )
+            .mappings()
+            .all()
+        )
+        return VehicleListingPageOut(
+            items=[VehicleListingOut(**listing) for listing in listings],
+            total=total,
+            page=page,
+            page_size=effective_page_size,
+        )
+
     @app.get("/api/vehicles/categories", response_model=VehicleCategoriesOut, tags=["vehicles"])
     def list_vehicle_categories(
         _: UserOut = Depends(get_current_user),  # noqa: B008

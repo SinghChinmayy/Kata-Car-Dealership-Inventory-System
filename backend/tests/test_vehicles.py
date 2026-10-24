@@ -235,3 +235,28 @@ def test_authenticated_user_searches_vehicle_listings_with_and_semantics(
     payload = response.json()
     assert payload["total"] == 1
     assert [listing["model"] for listing in payload["items"]] == ["Nexon"]
+
+
+def test_vehicle_search_allows_standard_users_and_rejects_missing_tokens(
+    postgres_url: str, monkeypatch
+) -> None:
+    """Search is protected like listing: any account may search, anonymous callers may not."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "buyer@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        client.post("/api/auth/register", json=credentials)
+        logged_in = client.post("/api/auth/login", json=credentials)
+        headers = {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+        standard_response = client.get("/api/vehicles/search", headers=headers)
+        anonymous_response = client.get("/api/vehicles/search")
+
+    assert standard_response.status_code == 200
+    assert standard_response.json()["total"] == 0
+    assert anonymous_response.status_code == 401
+    assert anonymous_response.json()["error"]["code"] == "unauthorized"
