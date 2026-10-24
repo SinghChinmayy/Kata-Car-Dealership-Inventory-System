@@ -37,4 +37,31 @@ describe("Login", () => {
       password: "valid-password"
     });
   });
+
+  it("shows the generic credentials error and stays on the sign-in page", async () => {
+    server.use(
+      http.post("*/api/auth/login", () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "invalid_credentials",
+              message: "Email or password is incorrect.",
+              request_id: "3f1e9a52-6c1b-4f1e-9a0a-5c7f3e2d1b00"
+            }
+          },
+          { status: 401 }
+        )
+      )
+    );
+    const { user } = renderApp("/login");
+
+    await user.type(screen.getByLabelText(/email/i), "buyer@example.com");
+    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Email or password is incorrect."
+    );
+    expect(screen.getByRole("button", { name: /sign in/i })).toBeEnabled();
+  });
 });
