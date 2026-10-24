@@ -75,6 +75,19 @@ class CreateVehicleRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class UpdateVehicleRequest(BaseModel):
+    make: str = Field(min_length=1, max_length=100)
+    model: str = Field(min_length=1, max_length=100)
+    category: VehicleCategory
+    price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
+
+    @field_validator("make", "model", mode="before")
+    @classmethod
+    def trim_text(cls, value: object) -> object:
+        """Normalize catalogue text before applying its required-length rule."""
+        return value.strip() if isinstance(value, str) else value
+
+
 class VehicleListingOut(BaseModel):
     id: UUID
     make: str
@@ -449,6 +462,36 @@ def create_app() -> FastAPI:
     ) -> VehicleCategoriesOut:
         """Expose the backend-owned category vocabulary to authenticated clients."""
         return VehicleCategoriesOut(items=[category.value for category in VehicleCategory])
+
+    @app.put("/api/vehicles/{listing_id}", response_model=VehicleListingOut, tags=["vehicles"])
+    def update_vehicle_listing(
+        listing_id: UUID,
+        payload: UpdateVehicleRequest,
+        _: UserOut = Depends(require_admin),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> VehicleListingOut:
+        """Replace a listing's catalogue fields; stock changes only via purchase or restock."""
+        listing = (
+            session.execute(
+                text(
+                    "UPDATE vehicle_listings SET make = :make, model = :model, "
+                    "category = :category, price = :price, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE id = :id "
+                    "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
+                ),
+                {
+                    "id": listing_id,
+                    "make": payload.make,
+                    "model": payload.model,
+                    "category": payload.category.value,
+                    "price": payload.price,
+                },
+            )
+            .mappings()
+            .one()
+        )
+        session.commit()
+        return VehicleListingOut(**listing)
 
     return app
 

@@ -466,3 +466,55 @@ def test_administrator_replaces_vehicle_listing_catalogue_fields(
     assert datetime.fromisoformat(updated["updated_at"]) > datetime.fromisoformat(
         original["updated_at"]
     )
+
+
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"make": "   "}, "make"),
+        ({"model": "x" * 101}, "model"),
+        ({"category": "Bus"}, "category"),
+        ({"price": "0"}, "price"),
+        ({"price": "10.999"}, "price"),
+        ({"make": None}, "make"),
+    ],
+)
+def test_vehicle_update_validates_catalogue_fields(
+    postgres_url: str, postgres_engine, monkeypatch, changes: dict[str, object], field: str
+) -> None:
+    """Update applies the same catalogue rules as creation, with every field required."""
+    use_test_database(postgres_url, monkeypatch)
+    payload = {**NEXON, **changes}
+    payload = {key: value for key, value in payload.items() if value is not None}
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 1})
+        response = client.put(
+            f"/api/vehicles/{created.json()['id']}", headers=headers, json=payload
+        )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == [field]
+
+
+def test_vehicle_update_requires_an_administrator(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Standard users are forbidden and anonymous callers unauthorized."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 1})
+        path = f"/api/vehicles/{created.json()['id']}"
+        standard_response = client.put(path, headers=buyer, json=NEXON)
+        anonymous_response = client.put(path, json=NEXON)
+
+    assert standard_response.status_code == 403
+    assert standard_response.json()["error"]["code"] == "forbidden"
+    assert anonymous_response.status_code == 401
+    assert anonymous_response.json()["error"]["code"] == "unauthorized"
