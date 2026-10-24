@@ -305,3 +305,61 @@ def test_administrator_dependency_forbids_standard_users_and_allows_administrato
     UUID(standard_error["request_id"])
     assert administrator_response.status_code == 200
     assert administrator_response.json() == {"status": "ok"}
+
+
+def test_demoted_administrator_loses_access_with_the_same_token(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Roles are read per request, so a demotion takes effect before the token expires."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "admin@example.com", "password": "valid-password"}
+    listing = {"make": "Tata", "model": "Nexon", "category": "SUV", "price": "1.00", "quantity": 1}
+
+    with TestClient(create_app()) as client:
+        account_id = client.post("/api/auth/register", json=credentials).json()["id"]
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": account_id},
+            )
+        token = client.post("/api/auth/login", json=credentials).json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        before = client.post("/api/vehicles", headers=headers, json=listing)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'standard_user' WHERE id = :id"),
+                {"id": account_id},
+            )
+        after = client.post("/api/vehicles", headers=headers, json=listing)
+
+    assert before.status_code == 201
+    assert after.status_code == 403
+    assert after.json()["error"]["code"] == "forbidden"
+
+
+def test_registration_ignores_a_requested_role(postgres_url: str, monkeypatch) -> None:
+    """Public registration can never self-assign administrator authority (ADR 0004)."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "email": "climber@example.com",
+                "password": "valid-password",
+                "role": "administrator",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["role"] == "standard_user"
