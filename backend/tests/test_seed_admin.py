@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import text
 
 ADMIN_EMAIL = "Owner@Example.com"
@@ -82,3 +83,26 @@ def test_seed_admin_promotes_an_existing_standard_account(
     assert promoted[0]["role"] == "administrator"
     assert password_hasher.verify("self-chosen-password", promoted[0]["password_hash"])
     assert "promoted" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("email", "password", "setting"),
+    [
+        ("", ADMIN_PASSWORD, "INITIAL_ADMIN_EMAIL"),
+        ("not-an-email", ADMIN_PASSWORD, "INITIAL_ADMIN_EMAIL"),
+        (ADMIN_EMAIL, "", "INITIAL_ADMIN_PASSWORD"),
+        (ADMIN_EMAIL, "too-short", "INITIAL_ADMIN_PASSWORD"),
+    ],
+)
+def test_seed_admin_rejects_unusable_settings(
+    postgres_url: str, postgres_engine, monkeypatch, email: str, password: str, setting: str
+) -> None:
+    """The command applies registration rules and names the setting to fix, creating nothing."""
+    configure(monkeypatch, postgres_url, email=email, password=password)
+    from app.scripts.seed_admin import main
+
+    with pytest.raises(SystemExit) as exited:
+        main()
+
+    assert setting in str(exited.value)
+    assert accounts(postgres_engine) == []
