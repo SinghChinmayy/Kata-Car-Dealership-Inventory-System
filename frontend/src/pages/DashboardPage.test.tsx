@@ -95,4 +95,26 @@ describe("Dashboard", () => {
       within(card).getByRole("button", { name: "Purchase" })
     ).toBeDisabled();
   });
+
+  it("retries a server hiccup once before giving up", async () => {
+    let calls = 0;
+    server.use(
+      http.get("*/api/vehicles/search", () => {
+        calls += 1;
+        return calls === 1
+          ? apiError(503, "service_unavailable", "Database unavailable.")
+          : HttpResponse.json(page([listing()]));
+      })
+    );
+    await renderSignedIn(buyer);
+
+    expect(
+      await screen.findByRole(
+        "article",
+        { name: "Tata Nexon" },
+        { timeout: 3000 }
+      )
+    ).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
 });

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -7,13 +7,13 @@ import type { User } from "../api/types";
 import { signedInAs } from "./handlers";
 import { server } from "./server";
 import App from "../App";
+import { createQueryClient } from "../api/queryClient";
 import { AuthProvider } from "../auth/AuthContext";
 
 /** Render the whole app at a route with fresh query, auth, and router state. */
 export function renderApp(path = "/") {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
-  });
+  // The production client, so tests see the same retry behavior users do.
+  const queryClient = createQueryClient();
   const user = userEvent.setup();
   const view = render(
     <QueryClientProvider client={queryClient}>
