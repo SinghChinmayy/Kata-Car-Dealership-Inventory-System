@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from pwdlib import PasswordHash
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -76,6 +76,9 @@ class CreateVehicleRequest(BaseModel):
 
 
 class UpdateVehicleRequest(BaseModel):
+    # Stock moves only through audited purchase/restock, so quantity is an unknown field here.
+    model_config = ConfigDict(extra="forbid")
+
     make: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=100)
     category: VehicleCategory
