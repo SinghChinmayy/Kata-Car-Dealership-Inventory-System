@@ -93,6 +93,7 @@ The single-page app resolves the frontend's open choices as follows:
 - Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase happens in one click with no confirmation; the button is disabled at zero stock and while its request is in flight. A sold-out conflict is announced and the results refresh.
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
 - The design is a dark "showroom" theme with a single amber accent and a responsive one-to-three column grid.
+- Known accessibility gap: dialogs focus their first control and close on Escape, but they do not yet keep Tab focus inside the dialog or return focus to the button that opened them. Keyboard-only users can tab onto the page behind an open dialog.
 - Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. The single Playwright end-to-end journey is planned as a separate step.
 
 ## My AI Usage
@@ -116,3 +117,15 @@ For purchase, the Claude Code interview covered who may buy (I chose to let Admi
 Before restock, I asked Claude Code to cross-reference the endpoint against the kata brief, ADRs, glossary, and TDD skill, which separated what was already decided from what was still open. The interview then settled the request body, limits (I chose no per-request cap), response, schema, concurrency proof, and the missing admin UI control. Claude Code drove four red-green cycles (restock, Stock Adjustment record with migration 0007, not-found, and integer-overflow rejection), plus guard tests for validation, authorization, rollback, and restocks racing purchases, then refactored the shared active-listing check and test trigger helper.
 
 For the frontend, Claude Code read the existing toolchain and ADRs first, then interviewed me on test tooling (I approved adding MSW and `user-event`), API routing, routes, registration flow, session expiry, search UX, card and purchase behavior, admin dialogs, visual direction, and slicing. It built the SPA one red-green cycle per behavior: sign-in, the sign-in error, registration with auto sign-in, field errors, route guards, the listing grid, purchase, search filters, pagination, session expiry, admin-only controls, and the add, edit, delete, and restock dialogs. It then ran the real stack in a browser, which surfaced two layout issues that the component tests could not see: the filter buttons overflowing at mid widths, and Log out wrapping on phones. It also found that `.env.example`'s CORS value breaks settings parsing and that the admin seed command is still a placeholder.
+
+I then had Claude Code fix those two setup bugs test-first and run an independent, read-only codebase audit in a subagent. The audit returned 15 ranked findings. The most serious was in code Claude Code had just written: the new seed command would promote whoever had registered the configured admin email first. We went through the findings one at a time; I asked for plain-language explanations where the trade-offs were technical, and chose each fix. The fixes were all test-first:
+- the seed command now refuses an email owned by a standard account;
+- a strong `JWT_SECRET` is required;
+- routing errors and crashes use the standard error envelope, keep the request ID and CORS headers, and log a traceback;
+- creating a listing caps its starting quantity, and page numbers are capped;
+- the SPA no longer retries client errors, so an invalid search shows its error immediately;
+- no error is hidden for lack of a matching input;
+- the toast live region stays mounted for screen readers, and only one purchase can be in flight at a time;
+- smaller hardening, plus guard tests for demotion and self-assigned roles.
+
+I also agreed a routine: `make report` refreshes [docs/test-report.md](docs/test-report.md) on every green and refactor commit. I skipped the dialog focus-trap change and left older commit messages as they are. Having a second agent review the code without seeing our earlier reasoning caught a real security flaw that the original implementation pass had argued itself into.
