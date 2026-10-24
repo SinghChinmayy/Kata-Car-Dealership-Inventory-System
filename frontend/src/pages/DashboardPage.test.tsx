@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { buyer, listing, page } from "../test/fixtures";
@@ -62,8 +62,10 @@ describe("Dashboard", () => {
     expect(
       within(card).getByRole("button", { name: "Purchase" })
     ).toBeDisabled();
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Purchased Tata Nexon"
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Purchased Tata Nexon"
+      )
     );
     expect(purchasedId).toBe(listing().id);
   });
@@ -87,8 +89,10 @@ describe("Dashboard", () => {
 
     await user.click(within(card).getByRole("button", { name: "Purchase" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "This vehicle is out of stock."
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "This vehicle is out of stock."
+      )
     );
     expect(await within(card).findByText("Out of stock")).toBeInTheDocument();
     expect(

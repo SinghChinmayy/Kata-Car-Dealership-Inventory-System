@@ -28,15 +28,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={show}>
       {children}
-      {toast && (
-        <div
-          key={toast.id}
-          role="status"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 shadow-2xl"
-        >
-          {toast.message}
-        </div>
-      )}
+      {/* Always mounted: screen readers announce text changes in an existing live region. */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+      >
+        {toast && (
+          <p
+            key={toast.id}
+            className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 shadow-2xl"
+          >
+            {toast.message}
+          </p>
+        )}
+      </div>
     </ToastContext.Provider>
   );
 }
