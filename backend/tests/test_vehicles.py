@@ -384,3 +384,26 @@ def test_vehicle_search_trims_text_filters_and_ignores_blank_ones(
     payload = response.json()
     assert payload["total"] == 1
     assert [listing["model"] for listing in payload["items"]] == ["Nexon"]
+
+
+@pytest.mark.parametrize("term", ["%", "_"])
+def test_vehicle_search_matches_wildcard_characters_literally(
+    postgres_url: str, postgres_engine, monkeypatch, term: str
+) -> None:
+    """LIKE wildcards in a search term are ordinary characters, not match-anything patterns."""
+    response = search_as_administrator(
+        postgres_url,
+        postgres_engine,
+        monkeypatch,
+        [
+            ("Tata", "Nexon", "SUV", "1250000.00"),
+            ("Tata", "Punch_EV", "SUV", "1100000.00"),
+            ("Tata", "Altroz%", "Hatchback", "700000.00"),
+        ],
+        {"model": term},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert term in payload["items"][0]["model"]
