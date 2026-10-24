@@ -20,6 +20,10 @@ Start the API with `cd backend && uv run uvicorn app.main:app --reload`, and the
 
 Common commands are exposed through the root `Makefile`: `make migrate`, `make test-backend`, `make test-frontend`, and `make lint`. Backend integration tests start one disposable PostgreSQL Testcontainers instance, migrate it once per session, and truncate application tables between tests. Docker must be running for that suite.
 
+## Test report
+
+The latest results are in [docs/test-report.md](docs/test-report.md): backend and frontend pass counts and the backend coverage table. `make report` reruns both suites and overwrites the file, and it is refreshed with every green and refactor commit. Docker must be running for the backend suite.
+
 ## Security scope and trade-offs
 
 User registration normalizes email by trimming and lowercasing it, validates it as an email address, and protects it with a database unique index. A duplicate registration returns `409 Conflict`; this intentionally reveals that the email is already registered, an accepted trade-off for this kata. Login failures always return a generic `401 Unauthorized` response.

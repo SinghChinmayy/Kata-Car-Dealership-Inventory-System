@@ -1,4 +1,4 @@
-.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint
+.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint report
 
 db-up:
 	docker compose up -d postgres
@@ -27,3 +27,10 @@ e2e:
 lint:
 	cd backend && uv run ruff check . && uv run ruff format --check .
 	cd frontend && npm run lint && npm run format:check
+
+# Overwrites docs/test-report.md; failing suites are recorded rather than aborting the report.
+report:
+	-cd backend && uv run pytest -q --cov=app --cov-report= --junitxml=reports/junit.xml
+	cd backend && uv run coverage report --format=markdown > reports/coverage.md
+	-cd frontend && npx vitest run --reporter=default --reporter=json --outputFile.json=reports/vitest.json
+	python3 scripts/test_report.py
