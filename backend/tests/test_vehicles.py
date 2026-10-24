@@ -920,3 +920,24 @@ def test_concurrent_purchases_never_oversell(
     assert listed.json()["items"][0]["quantity"] == 0
     with postgres_engine.connect() as connection:
         assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == 5
+
+
+def test_administrator_restock_adds_units_and_returns_the_updated_listing(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Restock raises stock by the requested amount without counting as a catalogue edit."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        response = client.post(
+            f"/api/vehicles/{created.json()['id']}/restock", headers=headers, json={"quantity": 5}
+        )
+
+    assert response.status_code == 200
+    original = created.json()
+    restocked = response.json()
+    assert restocked["id"] == original["id"]
+    assert restocked["quantity"] == 7
+    assert restocked["updated_at"] == original["updated_at"]
