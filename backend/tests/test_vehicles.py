@@ -260,3 +260,66 @@ def test_vehicle_search_allows_standard_users_and_rejects_missing_tokens(
     assert standard_response.json()["total"] == 0
     assert anonymous_response.status_code == 401
     assert anonymous_response.json()["error"]["code"] == "unauthorized"
+
+
+def search_as_administrator(
+    postgres_url: str,
+    postgres_engine,
+    monkeypatch,
+    listings: list[tuple[str, str, str, str]],
+    params: dict[str, str],
+):
+    """Seed listings through the API as an administrator, then run one search."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    credentials = {"email": "inventory@example.com", "password": "valid-password"}
+
+    with TestClient(create_app()) as client:
+        registered = client.post("/api/auth/register", json=credentials)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": registered.json()["id"]},
+            )
+        logged_in = client.post("/api/auth/login", json=credentials)
+        headers = {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+        for make, model, category, price in listings:
+            created = client.post(
+                "/api/vehicles",
+                headers=headers,
+                json={
+                    "make": make,
+                    "model": model,
+                    "category": category,
+                    "price": price,
+                    "quantity": 1,
+                },
+            )
+            assert created.status_code == 201
+        return client.get("/api/vehicles/search", headers=headers, params=params)
+
+
+def test_vehicle_search_price_range_includes_both_bounds(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A listing priced exactly at min_price or max_price is inside the range."""
+    response = search_as_administrator(
+        postgres_url,
+        postgres_engine,
+        monkeypatch,
+        [
+            ("Tata", "Punch", "SUV", "700000.00"),
+            ("Tata", "Nexon", "SUV", "1250000.00"),
+            ("Mahindra", "XUV700", "SUV", "2500000.00"),
+        ],
+        {"min_price": "700000.00", "max_price": "1250000.00"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert [listing["model"] for listing in payload["items"]] == ["Nexon", "Punch"]
