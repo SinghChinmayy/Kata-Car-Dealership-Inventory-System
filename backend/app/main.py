@@ -260,8 +260,10 @@ def create_app() -> FastAPI:
     async def handle_validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        # Clients name fields, not request locations, so drop the body/query/path prefix.
+        request_locations = ("body", "query", "path")
         fields = {
-            ".".join(str(part) for part in error["loc"] if part not in ("body", "query")): error[
+            ".".join(str(part) for part in error["loc"] if part not in request_locations): error[
                 "msg"
             ]
             for error in exc.errors()
