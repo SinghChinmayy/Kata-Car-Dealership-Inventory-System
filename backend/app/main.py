@@ -527,26 +527,28 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_db_session),  # noqa: B008
     ) -> VehicleListingOut:
         """Buy one unit of a listing and record the sale with catalogue snapshots."""
-        # Naive read-then-write; the concurrency test will show why this oversells.
-        quantity = session.execute(
-            text("SELECT quantity FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
-            {"id": listing_id},
-        ).scalar_one_or_none()
-        if quantity is None:
-            raise listing_not_found()
-        if quantity <= 0:
-            raise DomainError(409, "out_of_stock", "This vehicle is out of stock.")
+        # One conditional statement: the row lock serializes concurrent buyers, and each
+        # re-checks quantity > 0 after the previous one commits, so stock can't oversell.
         listing = (
             session.execute(
                 text(
-                    "UPDATE vehicle_listings SET quantity = :quantity WHERE id = :id "
+                    "UPDATE vehicle_listings SET quantity = quantity - 1 "
+                    "WHERE id = :id AND quantity > 0 AND deleted_at IS NULL "
                     "RETURNING id, make, model, category, price, quantity, created_at, updated_at"
                 ),
-                {"id": listing_id, "quantity": quantity - 1},
+                {"id": listing_id},
             )
             .mappings()
-            .one()
+            .one_or_none()
         )
+        if listing is None:
+            is_active = session.execute(
+                text("SELECT 1 FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
+                {"id": listing_id},
+            ).scalar_one_or_none()
+            if is_active is None:
+                raise listing_not_found()
+            raise DomainError(409, "out_of_stock", "This vehicle is out of stock.")
         # Same transaction as the decrement: either both persist or neither does.
         session.execute(
             text(
