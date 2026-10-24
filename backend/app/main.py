@@ -34,6 +34,8 @@ MAX_STOCK_QUANTITY = 2_147_483_647
 MAX_INITIAL_QUANTITY = 100_000
 # Deep enough for any real catalogue, small enough that OFFSET can never overflow.
 MAX_PAGE = 10_000
+# pg_trgm word_similarity cut-off: one wrong or missing letter in a short word still matches.
+FUZZY_MATCH_THRESHOLD = 0.5
 password_hasher = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -484,10 +486,16 @@ def create_app() -> FastAPI:
         make = make.strip() if make else None
         model = model.strip() if model else None
         if q:
-            # The SPA's single box: every word must appear somewhere in "make model".
+            # The SPA's single box: every word must appear in "make model", either as a
+            # substring or as a close trigram match, so small typos ("hilx") still find it.
             for index, word in enumerate(q.split()):
-                conditions.append(f"(make || ' ' || model) ILIKE :q{index} ESCAPE '\\'")
+                conditions.append(
+                    f"((make || ' ' || model) ILIKE :q{index} ESCAPE '\\' "
+                    f"OR word_similarity(:w{index}, make || ' ' || model) >= :fuzzy)"
+                )
                 params[f"q{index}"] = contains_pattern(word)
+                params[f"w{index}"] = word.lower()
+            params["fuzzy"] = FUZZY_MATCH_THRESHOLD
         if make:
             conditions.append("make ILIKE :make ESCAPE '\\'")
             params["make"] = contains_pattern(make)
