@@ -407,3 +407,62 @@ def test_vehicle_search_matches_wildcard_characters_literally(
     payload = response.json()
     assert payload["total"] == 1
     assert term in payload["items"][0]["model"]
+
+
+NEXON = {"make": "Tata", "model": "Nexon", "category": "SUV", "price": "1250000.00"}
+
+
+def use_test_database(postgres_url: str, monkeypatch) -> None:
+    """Point the application at the disposable test database."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+
+
+def login_headers(
+    client: TestClient, postgres_engine, email: str, *, administrator: bool
+) -> dict[str, str]:
+    """Register an account, optionally promote it, and return its bearer header."""
+    credentials = {"email": email, "password": "valid-password"}
+    registered = client.post("/api/auth/register", json=credentials)
+    if administrator:
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
+                {"id": registered.json()["id"]},
+            )
+    logged_in = client.post("/api/auth/login", json=credentials)
+    return {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+
+
+def test_administrator_replaces_vehicle_listing_catalogue_fields(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A full update changes catalogue fields only; stock and creation time stay put."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 3})
+        response = client.put(
+            f"/api/vehicles/{created.json()['id']}",
+            headers=headers,
+            json={"make": "  Tata ", "model": "Nexon EV", "category": "SUV", "price": "1499999.50"},
+        )
+
+    assert response.status_code == 200
+    original = created.json()
+    updated = response.json()
+    assert updated["id"] == original["id"]
+    assert updated["make"] == "Tata"
+    assert updated["model"] == "Nexon EV"
+    assert updated["category"] == "SUV"
+    assert updated["price"] == "1499999.50"
+    assert updated["quantity"] == 3
+    assert updated["created_at"] == original["created_at"]
+    assert datetime.fromisoformat(updated["updated_at"]) > datetime.fromisoformat(
+        original["updated_at"]
+    )
