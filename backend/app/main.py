@@ -504,7 +504,7 @@ def create_app() -> FastAPI:
             text(
                 "UPDATE vehicle_listings "
                 "SET deleted_at = CURRENT_TIMESTAMP, deleted_by = :deleted_by "
-                "WHERE id = :id RETURNING id"
+                "WHERE id = :id AND deleted_at IS NULL RETURNING id"
             ),
             {"id": listing_id, "deleted_by": admin.id},
         ).one_or_none()
