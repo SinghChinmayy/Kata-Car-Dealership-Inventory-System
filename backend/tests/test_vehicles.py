@@ -574,3 +574,33 @@ def test_vehicle_update_rejects_a_malformed_listing_id(
     error = response.json()["error"]
     assert error["code"] == "validation_error"
     assert list(error["fields"]) == ["listing_id"]
+
+
+def test_administrator_soft_deletes_a_vehicle_listing(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Deletion retires the listing but keeps its stock and who deleted it, and when."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        admin_id = client.get("/api/auth/me", headers=headers).json()["id"]
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 3})
+        response = client.delete(f"/api/vehicles/{created.json()['id']}", headers=headers)
+
+    assert response.status_code == 204
+    assert response.content == b""
+    with postgres_engine.connect() as connection:
+        row = (
+            connection.execute(
+                text(
+                    "SELECT quantity, deleted_at, deleted_by FROM vehicle_listings WHERE id = :id"
+                ),
+                {"id": created.json()["id"]},
+            )
+            .mappings()
+            .one()
+        )
+    assert row["quantity"] == 3
+    assert row["deleted_at"] is not None
+    assert str(row["deleted_by"]) == admin_id
