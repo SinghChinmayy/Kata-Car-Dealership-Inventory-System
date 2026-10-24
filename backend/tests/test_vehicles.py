@@ -536,3 +536,25 @@ def test_vehicle_update_returns_not_found_for_unknown_listing(
     error = response.json()["error"]
     assert error["code"] == "not_found"
     UUID(error["request_id"])
+
+
+@pytest.mark.parametrize("extra", [{"quantity": 99}, {"colour": "Red"}, {"id": "ignored"}])
+def test_vehicle_update_rejects_fields_outside_the_catalogue(
+    postgres_url: str, postgres_engine, monkeypatch, extra: dict[str, object]
+) -> None:
+    """Stock and unknown keys cannot ride along on an update; quantity stays unchanged."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 3})
+        response = client.put(
+            f"/api/vehicles/{created.json()['id']}", headers=headers, json={**NEXON, **extra}
+        )
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == list(extra)
+    assert listed.json()["items"][0]["quantity"] == 3
