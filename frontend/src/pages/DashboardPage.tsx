@@ -13,6 +13,7 @@ import {
   SearchFilters,
   type Filters
 } from "../components/SearchFilters";
+import { RestockDialog } from "../components/RestockDialog";
 import { useToast } from "../components/Toast";
 import { VehicleCard, type AdminActions } from "../components/VehicleCard";
 import { VehicleFormDialog } from "../components/VehicleFormDialog";
@@ -22,7 +23,8 @@ import { useAuth } from "../auth/AuthContext";
 type Dialog =
   | { kind: "add" }
   | { kind: "edit"; listing: VehicleListing }
-  | { kind: "delete"; listing: VehicleListing };
+  | { kind: "delete"; listing: VehicleListing }
+  | { kind: "restock"; listing: VehicleListing };
 
 export function DashboardPage() {
   const api = useApi();
@@ -36,7 +38,7 @@ export function DashboardPage() {
   // Wired to dialogs as each admin flow lands.
   const adminActions: AdminActions = {
     onEdit: (listing) => setDialog({ kind: "edit", listing }),
-    onRestock: () => {},
+    onRestock: (listing) => setDialog({ kind: "restock", listing }),
     onDelete: (listing) => setDialog({ kind: "delete", listing })
   };
   const [searchParams, setSearchParams] = useSearchParams();
@@ -160,6 +162,9 @@ export function DashboardPage() {
           />
         )}
       </main>
+      {dialog?.kind === "restock" && (
+        <RestockDialog listing={dialog.listing} onClose={closeDialog} />
+      )}
       {dialog?.kind === "delete" && (
         <DeleteListingDialog listing={dialog.listing} onClose={closeDialog} />
       )}
