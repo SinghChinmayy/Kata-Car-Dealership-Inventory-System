@@ -32,6 +32,8 @@ LISTING_COLUMNS = "id, make, model, category, price, quantity, created_at, updat
 # Stock Quantity is a PostgreSQL INTEGER; restocks may not push it past this.
 MAX_STOCK_QUANTITY = 2_147_483_647
 MAX_INITIAL_QUANTITY = 100_000
+# Deep enough for any real catalogue, small enough that OFFSET can never overflow.
+MAX_PAGE = 10_000
 password_hasher = PasswordHash.recommended()
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -434,7 +436,7 @@ def create_app() -> FastAPI:
     def list_vehicle_listings(
         _: UserOut = Depends(get_current_user),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
-        page: int = Query(default=1, ge=1),
+        page: int = Query(default=1, ge=1, le=MAX_PAGE),
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
         """Return active catalogue listings in stable newest-first order."""
@@ -453,7 +455,7 @@ def create_app() -> FastAPI:
         max_price: Optional[Decimal] = Query(  # noqa: B008
             default=None, ge=0, max_digits=14, decimal_places=2
         ),
-        page: int = Query(default=1, ge=1),
+        page: int = Query(default=1, ge=1, le=MAX_PAGE),
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
         """Return active listings matching every supplied filter, newest first."""
