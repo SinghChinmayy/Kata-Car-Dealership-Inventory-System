@@ -1,8 +1,15 @@
 import { useId } from "react";
 import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
+import { primaryButton } from "./buttonStyles";
 
-export function VehicleCard({ listing }: { listing: VehicleListing }) {
+type Props = {
+  listing: VehicleListing;
+  purchasing: boolean;
+  onPurchase: (listing: VehicleListing) => void;
+};
+
+export function VehicleCard({ listing, purchasing, onPurchase }: Props) {
   const titleId = useId();
   const inStock = listing.quantity > 0;
   return (
@@ -26,6 +33,14 @@ export function VehicleCard({ listing }: { listing: VehicleListing }) {
       >
         {formatStock(listing.quantity)}
       </p>
+      <button
+        type="button"
+        className={`${primaryButton} mt-5`}
+        disabled={!inStock || purchasing}
+        onClick={() => onPurchase(listing)}
+      >
+        Purchase
+      </button>
     </article>
   );
 }
