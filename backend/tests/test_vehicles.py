@@ -1102,3 +1102,27 @@ def test_restock_of_a_missing_or_deleted_listing_is_not_found(
         ).scalar_one()
     assert quantity == 2
     assert adjustments == 0
+
+
+@pytest.mark.parametrize("added", [2_147_483_646, 10**12])
+def test_restock_beyond_the_stock_limit_is_rejected(
+    postgres_url: str, postgres_engine, monkeypatch, added: int
+) -> None:
+    """Stock is a 32-bit count; a restock that would exceed it is invalid input, not a crash."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        response = client.post(
+            f"/api/vehicles/{created.json()['id']}/restock",
+            headers=headers,
+            json={"quantity": added},
+        )
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == ["quantity"]
+    assert listed.json()["items"][0]["quantity"] == 2
