@@ -729,3 +729,23 @@ def test_updating_a_deleted_listing_returns_not_found(
             {"id": created.json()["id"]},
         ).scalar_one()
     assert model == "Nexon"
+
+
+def test_purchase_takes_one_unit_and_returns_the_updated_listing(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A purchase decrements stock by exactly one without counting as a catalogue edit."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 3})
+        response = client.post(f"/api/vehicles/{created.json()['id']}/purchase", headers=buyer)
+
+    assert response.status_code == 200
+    original = created.json()
+    purchased = response.json()
+    assert purchased["id"] == original["id"]
+    assert purchased["quantity"] == 2
+    assert purchased["updated_at"] == original["updated_at"]
