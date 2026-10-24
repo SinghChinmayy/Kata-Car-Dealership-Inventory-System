@@ -122,4 +122,52 @@ describe("Search filters", () => {
     ).toBeInTheDocument();
     expect(Object.fromEntries(searches.at(-1)!)).toEqual({ q: "hil" });
   });
+
+  it("searches as you type, without a Search button", async () => {
+    const searches: URLSearchParams[] = [];
+    server.use(
+      http.get("*/api/vehicles/search", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        searches.push(params);
+        return HttpResponse.json(
+          params.get("q") === "hilx"
+            ? page([listing({ make: "Toyota", model: "Hilux" })])
+            : emptyPage
+        );
+      })
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.type(screen.getByLabelText("Search make or model"), "hilx");
+
+    expect(
+      await screen.findByRole("article", { name: "Toyota Hilux" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Search" })
+    ).not.toBeInTheDocument();
+    // A short pause after typing sends one search, not one per keystroke.
+    expect(searches.filter((params) => params.has("q"))).toHaveLength(1);
+  });
+
+  it("applies a category choice immediately", async () => {
+    server.use(
+      http.get("*/api/vehicles/search", ({ request }) =>
+        HttpResponse.json(
+          new URL(request.url).searchParams.get("category") === "Truck"
+            ? page([
+                listing({ make: "Toyota", model: "Hilux", category: "Truck" })
+              ])
+            : emptyPage
+        )
+      )
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.selectOptions(await screen.findByLabelText("Category"), "Truck");
+
+    expect(
+      await screen.findByRole("article", { name: "Toyota Hilux" })
+    ).toBeInTheDocument();
+  });
 });
