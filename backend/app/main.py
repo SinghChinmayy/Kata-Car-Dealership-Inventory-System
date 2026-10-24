@@ -460,7 +460,7 @@ def create_app() -> FastAPI:
     def search_vehicle_listings(
         _: UserOut = Depends(get_current_user),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
-        q: Optional[str] = None,
+        q: Optional[str] = Query(default=None, max_length=100),
         make: Optional[str] = None,
         model: Optional[str] = None,
         category: Optional[VehicleCategory] = None,
