@@ -61,34 +61,28 @@ class VehicleCategory(str, Enum):
     van = "Van"
 
 
-class CreateVehicleRequest(BaseModel):
+class VehicleCatalogueFields(BaseModel):
+    """Descriptive listing fields shared by creation and full replacement."""
+
     make: str = Field(min_length=1, max_length=100)
     model: str = Field(min_length=1, max_length=100)
     category: VehicleCategory
     price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
+
+    @field_validator("make", "model", mode="before")
+    @classmethod
+    def trim_text(cls, value: object) -> object:
+        """Normalize catalogue text before applying its required-length rule."""
+        return value.strip() if isinstance(value, str) else value
+
+
+class CreateVehicleRequest(VehicleCatalogueFields):
     quantity: int = Field(ge=0)
 
-    @field_validator("make", "model", mode="before")
-    @classmethod
-    def trim_text(cls, value: object) -> object:
-        """Normalize catalogue text before applying its required-length rule."""
-        return value.strip() if isinstance(value, str) else value
 
-
-class UpdateVehicleRequest(BaseModel):
+class UpdateVehicleRequest(VehicleCatalogueFields):
     # Stock moves only through audited purchase/restock, so quantity is an unknown field here.
     model_config = ConfigDict(extra="forbid")
-
-    make: str = Field(min_length=1, max_length=100)
-    model: str = Field(min_length=1, max_length=100)
-    category: VehicleCategory
-    price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
-
-    @field_validator("make", "model", mode="before")
-    @classmethod
-    def trim_text(cls, value: object) -> object:
-        """Normalize catalogue text before applying its required-length rule."""
-        return value.strip() if isinstance(value, str) else value
 
 
 class VehicleListingOut(BaseModel):
