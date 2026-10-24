@@ -864,3 +864,29 @@ def test_purchase_of_an_out_of_stock_listing_is_a_conflict(
     assert listed.json()["items"][0]["quantity"] == 0
     with postgres_engine.connect() as connection:
         assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == 0
+
+
+def test_purchase_of_a_missing_or_deleted_listing_is_not_found(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Only active listings can be bought; a retired one keeps its remaining stock."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        listing_id = created.json()["id"]
+        client.delete(f"/api/vehicles/{listing_id}", headers=headers)
+        deleted_response = client.post(f"/api/vehicles/{listing_id}/purchase", headers=headers)
+        missing_response = client.post(
+            "/api/vehicles/00000000-0000-4000-8000-000000000000/purchase", headers=headers
+        )
+
+    for response in (deleted_response, missing_response):
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+    with postgres_engine.connect() as connection:
+        quantity = connection.execute(
+            text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
+        ).scalar_one()
+    assert quantity == 2
