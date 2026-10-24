@@ -1,8 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, errorMessage } from "../api/client";
+import { useSearchParams } from "react-router-dom";
+import { ApiError, errorMessage, fieldErrors } from "../api/client";
 import type { ListingPage, VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
+import { FormAlert } from "../components/FormAlert";
+import {
+  FILTER_KEYS,
+  SearchFilters,
+  type Filters
+} from "../components/SearchFilters";
 import { useToast } from "../components/Toast";
 import { VehicleCard } from "../components/VehicleCard";
 
@@ -10,10 +17,25 @@ export function DashboardPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Submitted filters live in the URL so back/forward and shared links keep them.
+  const filters: Filters = Object.fromEntries(
+    FILTER_KEYS.flatMap((key) => {
+      const value = searchParams.get(key);
+      return value ? [[key, value]] : [];
+    })
+  );
+
   const listings = useQuery({
-    queryKey: ["vehicles", "search"],
-    queryFn: () => api<ListingPage>("/api/vehicles/search")
+    queryKey: ["vehicles", "search", filters],
+    queryFn: () => api<ListingPage>("/api/vehicles/search", { query: filters })
   });
+  const categories = useQuery({
+    queryKey: ["vehicles", "categories"],
+    queryFn: () => api<{ items: string[] }>("/api/vehicles/categories"),
+    staleTime: Infinity
+  });
+  const searchErrors = fieldErrors(listings.error);
 
   const purchase = useMutation({
     mutationFn: (listing: VehicleListing) =>
@@ -23,7 +45,7 @@ export function DashboardPage() {
     onSuccess: (updated) => {
       // The response is the listing after the sale; patch it into every cached page.
       queryClient.setQueriesData<ListingPage>(
-        { queryKey: ["vehicles"] },
+        { queryKey: ["vehicles", "search"] },
         (current) =>
           current
             ? {
@@ -39,7 +61,9 @@ export function DashboardPage() {
     onError: (error) => {
       toast(errorMessage(error));
       if (error instanceof ApiError && error.status === 409) {
-        void queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["vehicles", "search"]
+        });
       }
     }
   });
@@ -51,6 +75,18 @@ export function DashboardPage() {
         <h2 className="text-2xl font-semibold text-white">
           Available vehicles
         </h2>
+        <SearchFilters
+          key={searchParams.toString()}
+          initial={filters}
+          categories={categories.data?.items ?? []}
+          errors={searchErrors}
+          onSearch={(next) => setSearchParams(next)}
+        />
+        {listings.isError && Object.keys(searchErrors).length === 0 && (
+          <div className="mt-6">
+            <FormAlert message={errorMessage(listings.error)} />
+          </div>
+        )}
         {listings.isPending && (
           <p className="mt-6 text-slate-400">Loading vehicles…</p>
         )}
