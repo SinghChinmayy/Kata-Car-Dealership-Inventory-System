@@ -22,7 +22,7 @@ describe("Pagination", () => {
       })
     );
     const { user } = await renderSignedIn(buyer);
-    await user.type(screen.getByLabelText("Make"), "tata");
+    await user.type(screen.getByLabelText("Search make or model"), "tata");
     await user.click(screen.getByRole("button", { name: "Search" }));
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
@@ -35,7 +35,7 @@ describe("Pagination", () => {
       screen.getByRole("article", { name: "Tata Model 2" })
     ).toBeInTheDocument();
     expect(Object.fromEntries(searches.at(-1)!)).toEqual({
-      make: "tata",
+      q: "tata",
       page: "2"
     });
   });

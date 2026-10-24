@@ -14,13 +14,13 @@ describe("Search filters", () => {
         const params = new URL(request.url).searchParams;
         searches.push(params);
         return HttpResponse.json(
-          params.has("make") ? page([listing()]) : emptyPage
+          params.has("q") ? page([listing()]) : emptyPage
         );
       })
     );
     const { user } = await renderSignedIn(buyer);
 
-    await user.type(screen.getByLabelText("Make"), "ta");
+    await user.type(screen.getByLabelText("Search make or model"), "ta");
     await user.selectOptions(await screen.findByLabelText("Category"), "SUV");
     await user.type(screen.getByLabelText("Min price (₹)"), "1000000");
     await user.click(screen.getByRole("button", { name: "Search" }));
@@ -29,7 +29,7 @@ describe("Search filters", () => {
       await screen.findByRole("article", { name: "Tata Nexon" })
     ).toBeInTheDocument();
     expect(Object.fromEntries(searches.at(-1)!)).toEqual({
-      make: "ta",
+      q: "ta",
       category: "SUV",
       min_price: "1000000"
     });
@@ -37,7 +37,7 @@ describe("Search filters", () => {
     await user.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(await screen.findByText(/no vehicles match/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("Make")).toHaveValue("");
+    expect(screen.getByLabelText("Search make or model")).toHaveValue("");
     await waitFor(() =>
       expect(Object.fromEntries(searches.at(-1)!)).toEqual({})
     );

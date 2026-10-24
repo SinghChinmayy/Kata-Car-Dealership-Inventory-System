@@ -3,13 +3,7 @@ import { SelectField } from "./SelectField";
 import { TextField } from "./TextField";
 import { primaryButton, secondaryButton } from "./buttonStyles";
 
-export const FILTER_KEYS = [
-  "make",
-  "model",
-  "category",
-  "min_price",
-  "max_price"
-] as const;
+export const FILTER_KEYS = ["q", "category", "min_price", "max_price"] as const;
 
 export type Filters = Partial<Record<(typeof FILTER_KEYS)[number], string>>;
 
@@ -54,22 +48,14 @@ export function SearchFilters({
       className="mt-6 flex flex-wrap items-start gap-2"
     >
       <TextField
-        label="Make"
+        label="Search make or model"
         hideLabel
-        placeholder="Make"
-        className="min-w-0 flex-[2_1_9rem]"
-        value={filters.make ?? ""}
-        error={errors.make}
-        onChange={(event) => set("make")(event.target.value)}
-      />
-      <TextField
-        label="Model"
-        hideLabel
-        placeholder="Model"
-        className="min-w-0 flex-[2_1_9rem]"
-        value={filters.model ?? ""}
-        error={errors.model}
-        onChange={(event) => set("model")(event.target.value)}
+        type="search"
+        placeholder="Search make or model"
+        className="min-w-0 flex-[4_1_16rem]"
+        value={filters.q ?? ""}
+        error={errors.q}
+        onChange={(event) => set("q")(event.target.value)}
       />
       <SelectField
         label="Category"
