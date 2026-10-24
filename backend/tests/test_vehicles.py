@@ -363,3 +363,24 @@ def test_vehicle_search_rejects_invalid_filter_values(
     error = response.json()["error"]
     assert error["code"] == "validation_error"
     assert list(error["fields"]) == [field]
+
+
+def test_vehicle_search_trims_text_filters_and_ignores_blank_ones(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Surrounding spaces are not part of a term, and a whitespace-only term is no filter."""
+    response = search_as_administrator(
+        postgres_url,
+        postgres_engine,
+        monkeypatch,
+        [
+            ("Tata", "Nexon", "SUV", "1250000.00"),
+            ("Mahindra", "XUV700", "SUV", "2500000.00"),
+        ],
+        {"make": "  tata  ", "model": "   "},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [listing["model"] for listing in payload["items"]] == ["Nexon"]
