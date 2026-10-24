@@ -18,7 +18,7 @@ import { VehicleFormDialog } from "../components/VehicleFormDialog";
 import { primaryButton } from "../components/buttonStyles";
 import { useAuth } from "../auth/AuthContext";
 
-type Dialog = { kind: "add" };
+type Dialog = { kind: "add" } | { kind: "edit"; listing: VehicleListing };
 
 export function DashboardPage() {
   const api = useApi();
@@ -31,7 +31,7 @@ export function DashboardPage() {
   const closeDialog = useCallback(() => setDialog(null), []);
   // Wired to dialogs as each admin flow lands.
   const adminActions: AdminActions = {
-    onEdit: () => {},
+    onEdit: (listing) => setDialog({ kind: "edit", listing }),
     onRestock: () => {},
     onDelete: () => {}
   };
@@ -156,8 +156,9 @@ export function DashboardPage() {
           />
         )}
       </main>
-      {dialog?.kind === "add" && (
+      {(dialog?.kind === "add" || dialog?.kind === "edit") && (
         <VehicleFormDialog
+          listing={dialog.kind === "edit" ? dialog.listing : undefined}
           categories={categories.data?.items ?? []}
           onClose={closeDialog}
         />
