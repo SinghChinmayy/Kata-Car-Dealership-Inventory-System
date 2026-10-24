@@ -706,3 +706,26 @@ def test_deleting_a_deleted_listing_returns_not_found_and_keeps_the_original_aud
     assert response.json()["error"]["code"] == "not_found"
     with postgres_engine.connect() as connection:
         assert connection.execute(audit_query, {"id": created.json()["id"]}).one() == original
+
+
+def test_updating_a_deleted_listing_returns_not_found(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Retired listings cannot be edited back into a different shape."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 1})
+        path = f"/api/vehicles/{created.json()['id']}"
+        client.delete(path, headers=headers)
+        response = client.put(path, headers=headers, json={**NEXON, "model": "Nexon EV"})
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+    with postgres_engine.connect() as connection:
+        model = connection.execute(
+            text("SELECT model FROM vehicle_listings WHERE id = :id"),
+            {"id": created.json()["id"]},
+        ).scalar_one()
+    assert model == "Nexon"
