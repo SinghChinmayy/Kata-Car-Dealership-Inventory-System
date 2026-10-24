@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError, errorMessage, fieldErrors } from "../api/client";
+import { patchCachedListing } from "../api/listingCache";
 import type { ListingPage, VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
@@ -35,7 +36,6 @@ export function DashboardPage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   // Stable so an open dialog doesn't re-run its focus effect on every render.
   const closeDialog = useCallback(() => setDialog(null), []);
-  // Wired to dialogs as each admin flow lands.
   const adminActions: AdminActions = {
     onEdit: (listing) => setDialog({ kind: "edit", listing }),
     onRestock: (listing) => setDialog({ kind: "restock", listing }),
@@ -75,19 +75,8 @@ export function DashboardPage() {
         method: "POST"
       }),
     onSuccess: (updated) => {
-      // The response is the listing after the sale; patch it into every cached page.
-      queryClient.setQueriesData<ListingPage>(
-        { queryKey: ["vehicles", "search"] },
-        (current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) =>
-                  item.id === updated.id ? updated : item
-                )
-              }
-            : current
-      );
+      // The response is the listing after the sale.
+      patchCachedListing(queryClient, updated);
       toast(`Purchased ${updated.make} ${updated.model}`);
     },
     onError: (error) => {
