@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, log_event
@@ -295,8 +296,9 @@ def create_app() -> FastAPI:
             fields=fields,
         )
 
-    @app.exception_handler(HTTPException)
-    async def handle_http_error(request: Request, exc: HTTPException) -> JSONResponse:
+    # Starlette's base class also covers routing 404/405s that never reach a FastAPI route.
+    @app.exception_handler(StarletteHTTPException)
+    async def handle_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         status_codes = {
             401: ("unauthorized", "Authentication is required."),
             403: ("forbidden", "You do not have permission to perform this action."),
