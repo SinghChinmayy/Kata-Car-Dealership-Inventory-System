@@ -224,6 +224,16 @@ def validation_field_name(location: tuple[Any, ...]) -> str:
     return ".".join(str(part) for part in location if part not in ("body", "query", "path"))
 
 
+def safe_validation_message(error: dict[str, Any]) -> str:
+    """Field message that never repeats submitted input (docs/api-error-contract.md).
+
+    Email-validator explanations quote the offending characters, so emails get one message.
+    """
+    if error["loc"] and error["loc"][-1] == "email":
+        return "Enter a valid email address."
+    return str(error["msg"])
+
+
 def error_response(
     *,
     request: Request,
@@ -305,7 +315,10 @@ def create_app() -> FastAPI:
     async def handle_validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        fields = {validation_field_name(error["loc"]): error["msg"] for error in exc.errors()}
+        fields = {
+            validation_field_name(error["loc"]): safe_validation_message(error)
+            for error in exc.errors()
+        }
         return error_response(
             request=request,
             status_code=422,
