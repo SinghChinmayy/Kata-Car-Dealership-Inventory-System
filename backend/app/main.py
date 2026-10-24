@@ -187,6 +187,11 @@ def require_admin(user: UserOut = Depends(get_current_user)) -> UserOut:  # noqa
     return user
 
 
+def validation_field_name(location: tuple[Any, ...]) -> str:
+    """Name a field as clients know it, dropping FastAPI's body/query/path prefix."""
+    return ".".join(str(part) for part in location if part not in ("body", "query", "path"))
+
+
 def error_response(
     *,
     request: Request,
@@ -254,14 +259,7 @@ def create_app() -> FastAPI:
     async def handle_validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        # Clients name fields, not request locations, so drop the body/query/path prefix.
-        request_locations = ("body", "query", "path")
-        fields = {
-            ".".join(str(part) for part in error["loc"] if part not in request_locations): error[
-                "msg"
-            ]
-            for error in exc.errors()
-        }
+        fields = {validation_field_name(error["loc"]): error["msg"] for error in exc.errors()}
         return error_response(
             request=request,
             status_code=422,
