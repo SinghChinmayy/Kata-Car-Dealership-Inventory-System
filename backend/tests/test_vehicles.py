@@ -4,6 +4,7 @@ from uuid import UUID
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.main import create_app
 
@@ -604,3 +605,43 @@ def test_administrator_soft_deletes_a_vehicle_listing(
     assert row["quantity"] == 3
     assert row["deleted_at"] is not None
     assert str(row["deleted_by"]) == admin_id
+
+
+def test_vehicle_delete_requires_an_administrator_and_a_valid_id(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Standard users are forbidden, anonymous callers unauthorized, bad ids invalid."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 1})
+        path = f"/api/vehicles/{created.json()['id']}"
+        standard_response = client.delete(path, headers=buyer)
+        anonymous_response = client.delete(path)
+        malformed_response = client.delete("/api/vehicles/not-a-uuid", headers=admin)
+        listed = client.get("/api/vehicles", headers=admin)
+
+    assert standard_response.status_code == 403
+    assert anonymous_response.status_code == 401
+    assert malformed_response.status_code == 422
+    assert list(malformed_response.json()["error"]["fields"]) == ["listing_id"]
+    assert listed.json()["total"] == 1
+
+
+def test_deletion_audit_columns_are_set_together(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """The database refuses a deletion time without the deleting administrator."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 1})
+
+    with pytest.raises(IntegrityError), postgres_engine.begin() as connection:
+        connection.execute(
+            text("UPDATE vehicle_listings SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id"),
+            {"id": created.json()["id"]},
+        )

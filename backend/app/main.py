@@ -10,7 +10,7 @@ import jwt
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from pwdlib import PasswordHash
@@ -491,6 +491,24 @@ def create_app() -> FastAPI:
             raise DomainError(404, "not_found", "The requested resource does not exist.")
         session.commit()
         return VehicleListingOut(**listing)
+
+    @app.delete("/api/vehicles/{listing_id}", status_code=204, tags=["vehicles"])
+    def delete_vehicle_listing(
+        listing_id: UUID,
+        admin: UserOut = Depends(require_admin),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> Response:
+        """Retire a listing from active inventory while keeping it for auditing."""
+        session.execute(
+            text(
+                "UPDATE vehicle_listings "
+                "SET deleted_at = CURRENT_TIMESTAMP, deleted_by = :deleted_by "
+                "WHERE id = :id RETURNING id"
+            ),
+            {"id": listing_id, "deleted_by": admin.id},
+        ).one()
+        session.commit()
+        return Response(status_code=204)
 
     return app
 
