@@ -202,7 +202,9 @@ def create_app() -> FastAPI:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         fields = {
-            ".".join(str(part) for part in error["loc"] if part != "body"): error["msg"]
+            ".".join(str(part) for part in error["loc"] if part not in ("body", "query")): error[
+                "msg"
+            ]
             for error in exc.errors()
         }
         return error_response(
@@ -378,8 +380,12 @@ def create_app() -> FastAPI:
         make: Optional[str] = None,
         model: Optional[str] = None,
         category: Optional[VehicleCategory] = None,
-        min_price: Optional[Decimal] = None,
-        max_price: Optional[Decimal] = None,
+        min_price: Optional[Decimal] = Query(  # noqa: B008
+            default=None, ge=0, max_digits=14, decimal_places=2
+        ),
+        max_price: Optional[Decimal] = Query(  # noqa: B008
+            default=None, ge=0, max_digits=14, decimal_places=2
+        ),
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
