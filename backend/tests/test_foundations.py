@@ -118,3 +118,18 @@ def test_unexpected_errors_keep_request_id_cors_and_traceback(
     assert len(failures) == 1
     assert failures[0].levelno == logging.ERROR
     assert failures[0].exc_info is not None
+
+
+def test_browsers_on_other_origins_can_read_the_request_id(postgres_url: str, monkeypatch) -> None:
+    """With split hosting, the SPA can only show X-Request-ID if CORS exposes it."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    from app.core.config import get_settings
+    from app.db.session import reset_engine
+
+    get_settings.cache_clear()
+    reset_engine()
+    with TestClient(create_app()) as client:
+        response = client.get("/health", headers={"Origin": "http://localhost:5173"})
+
+    exposed = response.headers.get("access-control-expose-headers", "")
+    assert "x-request-id" in exposed.lower()
