@@ -1,3 +1,5 @@
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -890,3 +892,31 @@ def test_purchase_of_a_missing_or_deleted_listing_is_not_found(
             text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
         ).scalar_one()
     assert quantity == 2
+
+
+def test_concurrent_purchases_never_oversell(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Twenty simultaneous buyers race for five units: exactly five win, stock ends at zero."""
+    use_test_database(postgres_url, monkeypatch)
+    buyers = 20
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 5})
+        path = f"/api/vehicles/{created.json()['id']}/purchase"
+        start = threading.Barrier(buyers)
+
+        def purchase(_: int) -> int:
+            start.wait()
+            return client.post(path, headers=headers).status_code
+
+        with ThreadPoolExecutor(max_workers=buyers) as pool:
+            statuses = list(pool.map(purchase, range(buyers)))
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert statuses.count(200) == 5
+    assert statuses.count(409) == 15
+    assert listed.json()["items"][0]["quantity"] == 0
+    with postgres_engine.connect() as connection:
+        assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == 5
