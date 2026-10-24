@@ -500,14 +500,16 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_db_session),  # noqa: B008
     ) -> Response:
         """Retire a listing from active inventory while keeping it for auditing."""
-        session.execute(
+        deleted = session.execute(
             text(
                 "UPDATE vehicle_listings "
                 "SET deleted_at = CURRENT_TIMESTAMP, deleted_by = :deleted_by "
                 "WHERE id = :id RETURNING id"
             ),
             {"id": listing_id, "deleted_by": admin.id},
-        ).one()
+        ).one_or_none()
+        if deleted is None:
+            raise DomainError(404, "not_found", "The requested resource does not exist.")
         session.commit()
         return Response(status_code=204)
 
