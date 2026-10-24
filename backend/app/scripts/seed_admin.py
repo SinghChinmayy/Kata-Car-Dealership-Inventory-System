@@ -32,14 +32,13 @@ def main() -> None:
         if existing == "administrator":
             print(f"Administrator {email} already exists; nothing changed.")
             return
+        # Refuse rather than promote: emails are unverified, so whoever registered this
+        # address first must not inherit administrator rights with their own password.
         if existing is not None:
-            session.execute(
-                text("UPDATE user_accounts SET role = 'administrator' WHERE email = :email"),
-                {"email": email},
+            raise SystemExit(
+                f"INITIAL_ADMIN_EMAIL {email} already belongs to a standard account; "
+                "choose a different email for the initial administrator."
             )
-            session.commit()
-            print(f"Existing account {email} promoted to administrator; password unchanged.")
-            return
         session.execute(
             text(
                 "INSERT INTO user_accounts (id, email, password_hash, role) "
