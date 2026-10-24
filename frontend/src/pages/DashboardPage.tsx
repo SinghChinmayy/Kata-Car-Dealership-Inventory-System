@@ -5,6 +5,7 @@ import type { ListingPage, VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
 import { FormAlert } from "../components/FormAlert";
+import { Pagination } from "../components/Pagination";
 import {
   FILTER_KEYS,
   SearchFilters,
@@ -26,10 +27,18 @@ export function DashboardPage() {
     })
   );
 
+  const page = searchParams.get("page") ?? undefined;
   const listings = useQuery({
-    queryKey: ["vehicles", "search", filters],
-    queryFn: () => api<ListingPage>("/api/vehicles/search", { query: filters })
+    queryKey: ["vehicles", "search", filters, page],
+    queryFn: () =>
+      api<ListingPage>("/api/vehicles/search", {
+        query: { ...filters, page }
+      })
   });
+
+  function goToPage(next: number) {
+    setSearchParams({ ...filters, page: String(next) });
+  }
   const categories = useQuery({
     queryKey: ["vehicles", "categories"],
     queryFn: () => api<{ items: string[] }>("/api/vehicles/categories"),
@@ -76,7 +85,7 @@ export function DashboardPage() {
           Available vehicles
         </h2>
         <SearchFilters
-          key={searchParams.toString()}
+          key={new URLSearchParams(filters).toString()}
           initial={filters}
           categories={categories.data?.items ?? []}
           errors={searchErrors}
@@ -108,6 +117,14 @@ export function DashboardPage() {
               />
             ))}
           </div>
+        )}
+        {listings.data && (
+          <Pagination
+            page={listings.data.page}
+            pageSize={listings.data.page_size}
+            total={listings.data.total}
+            onPageChange={goToPage}
+          />
         )}
       </main>
     </div>
