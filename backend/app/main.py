@@ -529,8 +529,11 @@ def create_app() -> FastAPI:
         """Buy one unit of a listing and record the sale with catalogue snapshots."""
         # Naive read-then-write; the concurrency test will show why this oversells.
         quantity = session.execute(
-            text("SELECT quantity FROM vehicle_listings WHERE id = :id"), {"id": listing_id}
-        ).scalar_one()
+            text("SELECT quantity FROM vehicle_listings WHERE id = :id AND deleted_at IS NULL"),
+            {"id": listing_id},
+        ).scalar_one_or_none()
+        if quantity is None:
+            raise listing_not_found()
         if quantity <= 0:
             raise DomainError(409, "out_of_stock", "This vehicle is out of stock.")
         listing = (
