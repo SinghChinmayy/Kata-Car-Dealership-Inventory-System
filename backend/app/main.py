@@ -340,10 +340,6 @@ def create_app() -> FastAPI:
     def current_user(user: UserOut = Depends(get_current_user)) -> UserOut:  # noqa: B008
         return user
 
-    @app.get("/api/auth/admin-check", tags=["auth"])
-    def administrator_check(_: UserOut = Depends(require_admin)) -> dict[str, str]:  # noqa: B008
-        return {"status": "ok"}
-
     @app.post("/api/auth/register", status_code=201, response_model=UserOut, tags=["auth"])
     def register(
         payload: RegisterRequest,

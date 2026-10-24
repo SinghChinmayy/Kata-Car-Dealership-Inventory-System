@@ -289,13 +289,15 @@ def test_administrator_dependency_forbids_standard_users_and_allows_administrato
         registration_response = client.post("/api/auth/register", json=credentials)
         login_response = client.post("/api/auth/login", json=credentials)
         headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
-        standard_response = client.get("/api/auth/admin-check", headers=headers)
+        # Deleting an unknown listing is admin-only: 403 before the role check, 404 after it.
+        admin_only_path = f"/api/vehicles/{uuid4()}"
+        standard_response = client.delete(admin_only_path, headers=headers)
         with postgres_engine.begin() as connection:
             connection.execute(
                 text("UPDATE user_accounts SET role = 'administrator' WHERE id = :id"),
                 {"id": registration_response.json()["id"]},
             )
-        administrator_response = client.get("/api/auth/admin-check", headers=headers)
+        administrator_response = client.delete(admin_only_path, headers=headers)
 
     assert registration_response.status_code == 201
     assert login_response.status_code == 200
@@ -303,8 +305,8 @@ def test_administrator_dependency_forbids_standard_users_and_allows_administrato
     standard_error = standard_response.json()["error"]
     assert standard_error["code"] == "forbidden"
     UUID(standard_error["request_id"])
-    assert administrator_response.status_code == 200
-    assert administrator_response.json() == {"status": "ok"}
+    assert administrator_response.status_code == 404
+    assert administrator_response.json()["error"]["code"] == "not_found"
 
 
 def test_demoted_administrator_loses_access_with_the_same_token(
