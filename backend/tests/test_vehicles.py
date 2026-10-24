@@ -323,3 +323,22 @@ def test_vehicle_search_price_range_includes_both_bounds(
     payload = response.json()
     assert payload["total"] == 2
     assert [listing["model"] for listing in payload["items"]] == ["Nexon", "Punch"]
+
+
+def test_vehicle_search_rejects_min_price_above_max_price(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """An inverted price range is a validation error, not an empty result."""
+    response = search_as_administrator(
+        postgres_url,
+        postgres_engine,
+        monkeypatch,
+        [],
+        {"min_price": "1250000.00", "max_price": "700000.00"},
+    )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert error["fields"] == {"min_price": "Must be less than or equal to max_price."}
+    UUID(error["request_id"])
