@@ -384,6 +384,13 @@ def create_app() -> FastAPI:
         page_size: int = Query(default=20, ge=1),
     ) -> VehicleListingPageOut:
         """Return active listings matching every supplied filter, newest first."""
+        if min_price is not None and max_price is not None and min_price > max_price:
+            raise DomainError(
+                422,
+                "validation_error",
+                "Request validation failed.",
+                {"min_price": "Must be less than or equal to max_price."},
+            )
         effective_page_size = min(page_size, 100)
         conditions: list[str] = []
         params: dict[str, Any] = {}
