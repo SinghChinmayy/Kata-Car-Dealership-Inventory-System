@@ -299,6 +299,7 @@ def create_app() -> FastAPI:
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
     )
 
     @app.exception_handler(DomainError)
