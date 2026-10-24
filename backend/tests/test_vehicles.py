@@ -1179,3 +1179,26 @@ def test_listing_pages_beyond_the_limit_are_rejected(
 
     assert response.status_code == 422
     assert list(response.json()["error"]["fields"]) == ["page"]
+
+
+CATALOGUE = [
+    ("Toyota", "Hilux", "Truck", "3700000.00"),
+    ("Tata", "Nexon", "SUV", "1250000.00"),
+    ("Honda", "City", "Sedan", "1300000.00"),
+]
+
+
+@pytest.mark.parametrize(
+    ("q", "models"),
+    [("hil", ["Hilux"]), ("TOY", ["Hilux"]), ("toyota hilux", ["Hilux"]), ("ci", ["City"])],
+)
+def test_search_q_matches_make_or_model(
+    postgres_url: str, postgres_engine, monkeypatch, q: str, models: list[str]
+) -> None:
+    """One box finds a listing by any part of its make or its model."""
+    response = search_as_administrator(
+        postgres_url, postgres_engine, monkeypatch, CATALOGUE, {"q": q}
+    )
+
+    assert response.status_code == 200
+    assert [listing["model"] for listing in response.json()["items"]] == models
