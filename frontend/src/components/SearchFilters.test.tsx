@@ -63,4 +63,39 @@ describe("Search filters", () => {
       await screen.findByLabelText("Min price (₹)")
     ).toHaveAccessibleDescription("Must be less than or equal to max_price.");
   });
+
+  it("never hides an error that has no matching filter box", async () => {
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        apiError(422, "validation_error", "Request validation failed.", {
+          page: "Input should be a valid integer"
+        })
+      )
+    );
+    await renderSignedIn(buyer);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "page: Input should be a valid integer"
+    );
+  });
+
+  it("shows a category error under the category dropdown", async () => {
+    server.use(
+      http.get("*/api/vehicles/search", ({ request }) =>
+        new URL(request.url).searchParams.has("category")
+          ? apiError(422, "validation_error", "Request validation failed.", {
+              category: "Input should be a listed category"
+            })
+          : HttpResponse.json(emptyPage)
+      )
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.selectOptions(await screen.findByLabelText("Category"), "SUV");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(
+      await screen.findByLabelText("Category")
+    ).toHaveAccessibleDescription("Input should be a listed category");
+  });
 });

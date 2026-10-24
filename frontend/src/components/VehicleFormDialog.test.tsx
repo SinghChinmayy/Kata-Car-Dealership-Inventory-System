@@ -75,6 +75,32 @@ describe("Add vehicle", () => {
   });
 });
 
+describe("Vehicle form errors", () => {
+  it("shows a category error under the dropdown", async () => {
+    server.use(
+      http.post("*/api/vehicles", () =>
+        apiError(422, "validation_error", "Request validation failed.", {
+          category: "Input should be a listed category"
+        })
+      )
+    );
+    const { user } = await renderSignedIn(administrator);
+    await user.click(screen.getByRole("button", { name: "Add vehicle" }));
+    const dialog = screen.getByRole("dialog", { name: "Add vehicle" });
+
+    await user.type(within(dialog).getByLabelText("Make"), "Tata");
+    await user.type(within(dialog).getByLabelText("Model"), "Nexon");
+    await user.selectOptions(within(dialog).getByLabelText("Category"), "SUV");
+    await user.type(within(dialog).getByLabelText("Price (₹)"), "100");
+    await user.type(within(dialog).getByLabelText("Quantity"), "1");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(
+      await within(dialog).findByLabelText("Category")
+    ).toHaveAccessibleDescription("Input should be a listed category");
+  });
+});
+
 describe("Edit vehicle", () => {
   it("prefills the listing, sends only catalogue fields and updates the card", async () => {
     let updated: unknown;
