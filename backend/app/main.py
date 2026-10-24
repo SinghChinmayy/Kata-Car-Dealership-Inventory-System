@@ -484,9 +484,10 @@ def create_app() -> FastAPI:
         make = make.strip() if make else None
         model = model.strip() if model else None
         if q:
-            # The SPA's single box: match anywhere in "make model".
-            conditions.append("(make || ' ' || model) ILIKE :q ESCAPE '\\'")
-            params["q"] = contains_pattern(q)
+            # The SPA's single box: every word must appear somewhere in "make model".
+            for index, word in enumerate(q.split()):
+                conditions.append(f"(make || ' ' || model) ILIKE :q{index} ESCAPE '\\'")
+                params[f"q{index}"] = contains_pattern(word)
         if make:
             conditions.append("make ILIKE :make ESCAPE '\\'")
             params["make"] = contains_pattern(make)
