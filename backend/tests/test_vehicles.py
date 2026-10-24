@@ -1145,3 +1145,21 @@ def test_concurrent_restocks_and_purchases_keep_stock_consistent(
         assert (
             connection.execute(text("SELECT COUNT(*) FROM stock_adjustments")).scalar_one() == pairs
         )
+
+
+@pytest.mark.parametrize(("quantity", "status"), [(100_000, 201), (100_001, 422), (3 * 10**9, 422)])
+def test_vehicle_creation_caps_the_starting_quantity(
+    postgres_url: str, postgres_engine, monkeypatch, quantity: int, status: int
+) -> None:
+    """A new listing starts with at most 100,000 units; larger values are typos, not a crash."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": quantity}
+        )
+
+    assert response.status_code == status
+    if status == 422:
+        assert list(response.json()["error"]["fields"]) == ["quantity"]
