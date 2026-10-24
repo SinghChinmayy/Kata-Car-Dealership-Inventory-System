@@ -941,3 +941,50 @@ def test_administrator_restock_adds_units_and_returns_the_updated_listing(
     assert restocked["id"] == original["id"]
     assert restocked["quantity"] == 7
     assert restocked["updated_at"] == original["updated_at"]
+
+
+@pytest.mark.parametrize(
+    ("body", "field"),
+    [
+        ({"quantity": 0}, "quantity"),
+        ({"quantity": -3}, "quantity"),
+        ({"quantity": "many"}, "quantity"),
+        ({}, "quantity"),
+        ({"quantity": 1, "colour": "Red"}, "colour"),
+    ],
+)
+def test_restock_validates_the_added_quantity(
+    postgres_url: str, postgres_engine, monkeypatch, body: dict[str, object], field: str
+) -> None:
+    """Restock needs one positive whole quantity and nothing else."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 2})
+        response = client.post(
+            f"/api/vehicles/{created.json()['id']}/restock", headers=headers, json=body
+        )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert list(error["fields"]) == [field]
+
+
+def test_restock_requires_an_administrator(postgres_url: str, postgres_engine, monkeypatch) -> None:
+    """Standard users are forbidden and anonymous callers unauthorized; stock is untouched."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        created = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 2})
+        path = f"/api/vehicles/{created.json()['id']}/restock"
+        standard_response = client.post(path, headers=buyer, json={"quantity": 5})
+        anonymous_response = client.post(path, json={"quantity": 5})
+        listed = client.get("/api/vehicles", headers=admin)
+
+    assert standard_response.status_code == 403
+    assert anonymous_response.status_code == 401
+    assert listed.json()["items"][0]["quantity"] == 2

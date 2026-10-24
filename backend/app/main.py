@@ -87,6 +87,12 @@ class UpdateVehicleRequest(VehicleCatalogueFields):
     model_config = ConfigDict(extra="forbid")
 
 
+class RestockRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    quantity: int = Field(gt=0)
+
+
 class VehicleListingOut(BaseModel):
     id: UUID
     make: str
@@ -567,6 +573,31 @@ def create_app() -> FastAPI:
                 "model": listing["model"],
                 "category": listing["category"],
             },
+        )
+        session.commit()
+        return VehicleListingOut(**listing)
+
+    @app.post(
+        "/api/vehicles/{listing_id}/restock", response_model=VehicleListingOut, tags=["inventory"]
+    )
+    def restock_vehicle_listing(
+        listing_id: UUID,
+        payload: RestockRequest,
+        _: UserOut = Depends(require_admin),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> VehicleListingOut:
+        """Add units to a listing's stock."""
+        # Relative increment, so a concurrent purchase or restock is never overwritten.
+        listing = (
+            session.execute(
+                text(
+                    "UPDATE vehicle_listings SET quantity = quantity + :quantity WHERE id = :id "
+                    f"RETURNING {LISTING_COLUMNS}"
+                ),
+                {"id": listing_id, "quantity": payload.quantity},
+            )
+            .mappings()
+            .one()
         )
         session.commit()
         return VehicleListingOut(**listing)
