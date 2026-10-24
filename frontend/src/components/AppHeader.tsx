@@ -12,6 +12,11 @@ export function AppHeader() {
         {session && (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-300">{session.user.email}</span>
+            {session.user.role === "administrator" && (
+              <span className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+                Administrator
+              </span>
+            )}
             <button
               type="button"
               className={`${secondaryButton} py-1.5`}

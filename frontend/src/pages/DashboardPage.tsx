@@ -12,12 +12,22 @@ import {
   type Filters
 } from "../components/SearchFilters";
 import { useToast } from "../components/Toast";
-import { VehicleCard } from "../components/VehicleCard";
+import { VehicleCard, type AdminActions } from "../components/VehicleCard";
+import { primaryButton } from "../components/buttonStyles";
+import { useAuth } from "../auth/AuthContext";
 
 export function DashboardPage() {
   const api = useApi();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { session } = useAuth();
+  const isAdmin = session?.user.role === "administrator";
+  // Wired to dialogs as each admin flow lands.
+  const adminActions: AdminActions = {
+    onEdit: () => {},
+    onRestock: () => {},
+    onDelete: () => {}
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   // Submitted filters live in the URL so back/forward and shared links keep them.
   const filters: Filters = Object.fromEntries(
@@ -81,9 +91,16 @@ export function DashboardPage() {
     <div className="min-h-screen">
       <AppHeader />
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <h2 className="text-2xl font-semibold text-white">
-          Available vehicles
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold text-white">
+            Available vehicles
+          </h2>
+          {isAdmin && (
+            <button type="button" className={primaryButton}>
+              Add vehicle
+            </button>
+          )}
+        </div>
         <SearchFilters
           key={new URLSearchParams(filters).toString()}
           initial={filters}
@@ -114,6 +131,7 @@ export function DashboardPage() {
                   purchase.isPending && purchase.variables?.id === listing.id
                 }
                 onPurchase={(selected) => purchase.mutate(selected)}
+                admin={isAdmin ? adminActions : undefined}
               />
             ))}
           </div>

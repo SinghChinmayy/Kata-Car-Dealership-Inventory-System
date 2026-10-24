@@ -1,15 +1,23 @@
 import { useId } from "react";
 import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
-import { primaryButton } from "./buttonStyles";
+import { primaryButton, secondaryButton } from "./buttonStyles";
+
+export type AdminActions = {
+  onEdit: (listing: VehicleListing) => void;
+  onRestock: (listing: VehicleListing) => void;
+  onDelete: (listing: VehicleListing) => void;
+};
 
 type Props = {
   listing: VehicleListing;
   purchasing: boolean;
   onPurchase: (listing: VehicleListing) => void;
+  /** Present only for administrators. */
+  admin?: AdminActions;
 };
 
-export function VehicleCard({ listing, purchasing, onPurchase }: Props) {
+export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
   const titleId = useId();
   const inStock = listing.quantity > 0;
   return (
@@ -41,6 +49,31 @@ export function VehicleCard({ listing, purchasing, onPurchase }: Props) {
       >
         Purchase
       </button>
+      {admin && (
+        <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+          <button
+            type="button"
+            className={`${secondaryButton} px-2 py-1.5`}
+            onClick={() => admin.onEdit(listing)}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className={`${secondaryButton} px-2 py-1.5`}
+            onClick={() => admin.onRestock(listing)}
+          >
+            Restock
+          </button>
+          <button
+            type="button"
+            className={`${secondaryButton} px-2 py-1.5 text-rose-300 hover:border-rose-500`}
+            onClick={() => admin.onDelete(listing)}
+          >
+            Delete
+          </button>
+        </div>
+      )}
     </article>
   );
 }
