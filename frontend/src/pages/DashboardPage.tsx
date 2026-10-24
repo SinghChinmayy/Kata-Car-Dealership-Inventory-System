@@ -5,6 +5,7 @@ import { ApiError, errorMessage, fieldErrors } from "../api/client";
 import type { ListingPage, VehicleListing } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
+import { DeleteListingDialog } from "../components/DeleteListingDialog";
 import { FormAlert } from "../components/FormAlert";
 import { Pagination } from "../components/Pagination";
 import {
@@ -18,7 +19,10 @@ import { VehicleFormDialog } from "../components/VehicleFormDialog";
 import { primaryButton } from "../components/buttonStyles";
 import { useAuth } from "../auth/AuthContext";
 
-type Dialog = { kind: "add" } | { kind: "edit"; listing: VehicleListing };
+type Dialog =
+  | { kind: "add" }
+  | { kind: "edit"; listing: VehicleListing }
+  | { kind: "delete"; listing: VehicleListing };
 
 export function DashboardPage() {
   const api = useApi();
@@ -33,7 +37,7 @@ export function DashboardPage() {
   const adminActions: AdminActions = {
     onEdit: (listing) => setDialog({ kind: "edit", listing }),
     onRestock: () => {},
-    onDelete: () => {}
+    onDelete: (listing) => setDialog({ kind: "delete", listing })
   };
   const [searchParams, setSearchParams] = useSearchParams();
   // Submitted filters live in the URL so back/forward and shared links keep them.
@@ -156,6 +160,9 @@ export function DashboardPage() {
           />
         )}
       </main>
+      {dialog?.kind === "delete" && (
+        <DeleteListingDialog listing={dialog.listing} onClose={closeDialog} />
+      )}
       {(dialog?.kind === "add" || dialog?.kind === "edit") && (
         <VehicleFormDialog
           listing={dialog.kind === "edit" ? dialog.listing : undefined}
