@@ -126,7 +126,8 @@ def fetch_listing_page(
     ever reaches the query through bound parameters.
     """
     effective_page_size = min(page_size, 100)
-    where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
+    # Retired listings stay in the table for auditing but never appear in normal reads.
+    where = f"WHERE {' AND '.join(['deleted_at IS NULL', *conditions])} "
     total = session.execute(
         text(f"SELECT COUNT(*) FROM vehicle_listings {where}"), params
     ).scalar_one()
