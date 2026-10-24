@@ -116,7 +116,7 @@ The single-page app resolves the frontend's open choices as follows:
 - The dashboard always uses the search endpoint. Submitted filters and the page number live in the URL, so back and forward keep them. Categories come from the API. Server validation errors appear beside the matching input.
 - Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase happens in one click with no confirmation; the button is disabled at zero stock and while its request is in flight. A sold-out conflict is announced and the results refresh.
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
-- The design is a dark "showroom" theme with a single amber accent and a responsive one-to-three column grid.
+- The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
 - Known accessibility gap: dialogs focus their first control and close on Escape, but they do not yet keep Tab focus inside the dialog or return focus to the button that opened them. Keyboard-only users can tab onto the page behind an open dialog.
 - Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. One Playwright journey exercises the real stack end to end.
 
