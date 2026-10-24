@@ -74,3 +74,54 @@ describe("Add vehicle", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("Edit vehicle", () => {
+  it("prefills the listing, sends only catalogue fields and updates the card", async () => {
+    let updated: unknown;
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(page([listing()]))
+      ),
+      http.put("*/api/vehicles/:id", async ({ request }) => {
+        updated = await request.json();
+        return HttpResponse.json(
+          listing({ model: "Nexon EV", price: "1499999.50" })
+        );
+      })
+    );
+    const { user } = await renderSignedIn(administrator);
+    const card = await screen.findByRole("article", { name: "Tata Nexon" });
+    await user.click(within(card).getByRole("button", { name: "Edit" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit vehicle" });
+    expect(within(dialog).getByLabelText("Make")).toHaveValue("Tata");
+    expect(within(dialog).queryByLabelText("Quantity")).not.toBeInTheDocument();
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(
+          page([listing({ model: "Nexon EV", price: "1499999.50" })])
+        )
+      )
+    );
+
+    const model = within(dialog).getByLabelText("Model");
+    await user.clear(model);
+    await user.type(model, "Nexon EV");
+    const price = within(dialog).getByLabelText("Price (₹)");
+    await user.clear(price);
+    await user.type(price, "1499999.50");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByRole("article", { name: "Tata Nexon EV" })
+    ).toBeInTheDocument();
+    expect(updated).toEqual({
+      make: "Tata",
+      model: "Nexon EV",
+      category: "SUV",
+      price: "1499999.50"
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Updated Tata Nexon EV"
+    );
+  });
+});
