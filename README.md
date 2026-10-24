@@ -10,8 +10,11 @@ Prerequisites: Docker with a running daemon, [uv](https://docs.astral.sh/uv/), N
 cp .env.example .env
 make db-up
 cd backend && uv sync --all-groups && uv run alembic upgrade head
+uv run python -m app.scripts.seed_admin
 cd ../frontend && npm ci
 ```
+
+The seed command (`make seed-admin`) creates the first Administrator from `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` in `.env`, which follow the same rules as registration. It is safe to rerun: an existing Administrator is left unchanged, and an existing Standard User with that email is promoted while keeping its own password. Change the example password before using it anywhere shared. The SPA's development server proxies `/api` to the API on port 8000, so open `http://localhost:5173`.
 
 Start the API with `cd backend && uv run uvicorn app.main:app --reload`, and the SPA with `cd frontend && npm run dev`. FastAPI's local OpenAPI documentation is available at `http://localhost:8000/docs`; `GET /health` verifies database readiness.
 
