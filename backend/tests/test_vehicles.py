@@ -1239,3 +1239,18 @@ def test_search_q_does_not_match_unrelated_words(
     )
 
     assert response.json()["total"] == 0
+
+
+def test_search_q_lists_the_closest_match_first(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """While searching, relevance beats recency: an exact hit outranks a newer near miss."""
+    response = search_as_administrator(
+        postgres_url,
+        postgres_engine,
+        monkeypatch,
+        [("Honda", "City", "Sedan", "1300000.00"), ("Tata", "Citx", "Sedan", "900000.00")],
+        {"q": "city"},
+    )
+
+    assert [listing["model"] for listing in response.json()["items"]] == ["City", "Citx"]
