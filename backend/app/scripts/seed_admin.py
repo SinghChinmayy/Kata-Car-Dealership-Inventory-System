@@ -2,16 +2,28 @@
 
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db.session import get_session_factory
-from app.main import password_hasher
+from app.main import RegisterRequest, password_hasher
 
 
 def main() -> None:
     settings = get_settings()
-    email = settings.initial_admin_email.strip().lower()
+    # The initial administrator meets the same email and password rules as public registration.
+    try:
+        credentials = RegisterRequest(
+            email=settings.initial_admin_email, password=settings.initial_admin_password
+        )
+    except ValidationError as exc:
+        setting = {"email": "INITIAL_ADMIN_EMAIL", "password": "INITIAL_ADMIN_PASSWORD"}
+        invalid = sorted({setting[str(error["loc"][0])] for error in exc.errors()})
+        raise SystemExit(
+            f"Set a valid {' and '.join(invalid)} (email address; password of 12-128 characters)."
+        ) from exc
+    email = credentials.email.strip().lower()
     with get_session_factory()() as session:
         existing = session.execute(
             text("SELECT role FROM user_accounts WHERE email = :email"), {"email": email}
@@ -36,7 +48,7 @@ def main() -> None:
             {
                 "id": uuid4(),
                 "email": email,
-                "password_hash": password_hasher.hash(settings.initial_admin_password),
+                "password_hash": password_hasher.hash(credentials.password),
             },
         )
         session.commit()
