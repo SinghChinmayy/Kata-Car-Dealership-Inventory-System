@@ -68,11 +68,12 @@ Vehicle search (`GET /api/vehicles/search`) applies every supplied filter togeth
 
 - `make` and `model` match case-insensitively anywhere in the value, so `xuv` and `700` both find `XUV700`. `%` and `_` in a term are matched literally rather than as wildcards.
 - Text terms are trimmed; an empty or whitespace-only term is ignored, so a cleared form field means "no filter".
+- `q` is the combined search used by the app's single search box (at most 100 characters). Each word must match the make or the model, in any order: `hil`, `toyota hilux` and `hilux toy` all find a Toyota Hilux. Words also match despite a small typo (`hilx`, `toyta`, `nexn`). This uses PostgreSQL's `pg_trgm` word similarity with a 0.5 cut-off, enabled by migration 0008. With `q`, results are ordered closest match first, then newest. The brief's `make` and `model` filters are kept unchanged alongside it.
 - `category` accepts a single value from the controlled vocabulary; any other value returns `422`.
 - `min_price` and `max_price` are inclusive, must be non-negative with at most two decimal places, and `min_price` greater than `max_price` returns `422`.
 - With no filters, search returns every active listing. Out-of-stock listings are included so the SPA can show them with a disabled Purchase button.
 - Paging and ordering match `GET /api/vehicles`: `page`, `page_size` (default 20, capped at 100), newest first, with `total` counting all matches.
-- Any authenticated user may search. No trigram index is added for substring matching; at dealership catalogue sizes a sequential scan is fast, and a `pg_trgm` GIN index is the scaling follow-up.
+- Any authenticated user may search. No trigram index is added; at dealership catalogue sizes a sequential scan is fast, and a `pg_trgm` GIN index on make and model is the scaling follow-up.
 
 Vehicle update (`PUT /api/vehicles/{id}`) resolves its open choices as follows:
 
@@ -113,7 +114,7 @@ The single-page app resolves the frontend's open choices as follows:
 - Routes are `/login`, `/register`, and a protected `/` dashboard. Anonymous visitors and unknown paths go to sign in; signed-in visitors skip the sign-in and registration pages. Registration signs the new account straight in.
 - The access token is held in memory only (ADR 0003), so a browser refresh requires signing in again. Any `401` on a signed-in request ends the session, clears cached data, and returns to sign in with a notice.
 - The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
-- The dashboard always uses the search endpoint. Submitted filters and the page number live in the URL, so back and forward keep them. Categories come from the API. Server validation errors appear beside the matching input.
+- The dashboard always uses the search endpoint and searches as you type. Text and price changes apply after a 300 ms pause, while a category choice, Enter, or Clear applies immediately. The applied filters and page number live in the URL, so back and forward restore them. Categories come from the API. Server validation errors appear beside the matching input.
 - Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase happens in one click with no confirmation; the button is disabled at zero stock and while its request is in flight. A sold-out conflict is announced and the results refresh.
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
 - The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
@@ -157,3 +158,5 @@ I also agreed a routine: `make report` refreshes [docs/test-report.md](docs/test
 Finally, I asked Claude Code to build the Playwright end-to-end journey in a subagent. It isolated the run in a throwaway `_e2e` database with a guarded reset, so my development data was never touched. It ran the journey three times without flakiness and found no application bugs; I then re-ran it in the main session to confirm.
 
 For the visual refresh, I asked for a more modern, professional, and minimal UI. Claude Code first rendered four sample designs of the same dashboard for me to compare. I chose the clean light design, and a subagent restyled every screen to match it. It kept every label and accessible name the tests rely on, so no test changed. It also checked the result in a real browser at desktop and phone widths, which turned up a clipped category select on phones and stray gaps in two dialogs, both fixed before committing.
+
+While trying the app, I noticed that typing a model ("Hilux") into the Make box found nothing, and asked for fuzzy, as-you-type search. Claude Code explained the cause first: separate Make and Model boxes. It then interviewed me on four choices: one box or two, how forgiving the matching should be, live versus button search, and whether to keep the brief's `make`/`model` API filters. It built the result test-first: a combined `q` parameter, multi-word and typo-tolerant matching with `pg_trgm`, relevance ordering, and debounced live search. It checked against my dev data before calling it done, and found that the "missing" Hilux had simply been deleted.
