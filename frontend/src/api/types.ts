@@ -12,6 +12,8 @@ export type VehicleListing = {
   /** Exact decimal string in INR, e.g. "1250000.00" (ADR 0010). */
   price: string;
   quantity: number;
+  /** Absolute http(s) photo URL, or null when the listing has none. */
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 };

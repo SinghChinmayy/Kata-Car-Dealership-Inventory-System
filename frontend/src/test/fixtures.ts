@@ -18,6 +18,7 @@ export function listing(overrides: Partial<Record<string, unknown>> = {}) {
     category: "SUV",
     price: "1250000.00",
     quantity: 3,
+    image_url: null,
     created_at: "2026-10-24T05:00:00Z",
     updated_at: "2026-10-24T05:00:00Z",
     ...overrides
