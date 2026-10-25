@@ -23,8 +23,15 @@ def main() -> None:
                 {"email": credentials.email.strip().lower()},
             ).scalar_one_or_none()
             # Rerunning is the reset: existing demo accounts keep their passwords.
-            if existing is not None:
+            if existing == role:
                 continue
+            # Someone else registered this address first and controls its password, so
+            # publishing it as a demo login would mislead visitors.
+            if existing is not None:
+                raise SystemExit(
+                    f"Demo email {credentials.email.strip().lower()} already belongs to "
+                    "another account; choose a different demo email."
+                )
             session.execute(
                 text(
                     "INSERT INTO user_accounts (id, email, password_hash, role) "
