@@ -34,7 +34,7 @@ Each layer only talks to the one below it. The SPA reaches the API through one f
 flowchart TB
     subgraph spa["React SPA, frontend/src"]
         direction TB
-        pages["Pages<br/>LoginPage, RegisterPage, DashboardPage"]
+        pages["Pages<br/>LoginPage, RegisterPage, DashboardPage, PurchasesPage"]
         components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog,<br/>PurchaseDialog, VehicleDetailsDialog, VehiclePhoto, Modal"]
         guards["Routing and session<br/>App.tsx routes, GuestOnly, RequireSession, AuthProvider"]
         query["Server state<br/>TanStack Query cache, patchCachedListing"]
@@ -151,6 +151,7 @@ Tests never touch the development database. The backend suite starts its own Tes
 | `DELETE /api/vehicles/{id}` | Administrator | Soft-deletes a listing |
 | `POST /api/vehicles/{id}/purchase` | Signed in | Buys one unit |
 | `POST /api/vehicles/{id}/restock` | Administrator | Adds units and records a Stock Adjustment |
+| `GET /api/purchases/me` | Signed in | Lists the caller's purchases, newest first, one page at a time |
 
 The rules behind each endpoint are listed under [Assumptions and additions](#assumptions-and-additions).
 
@@ -232,11 +233,12 @@ erDiagram
 ### How the SPA works
 
 - `main.tsx` nests the providers: the TanStack Query client, then React Router, then `AuthProvider`, then `App`.
-- `App.tsx` wraps `/login` and `/register` in `GuestOnly` and the `/` dashboard in `RequireSession`; any other path redirects to `/`.
+- `App.tsx` wraps `/login` and `/register` in `GuestOnly` and the `/` dashboard and `/purchases` history in `RequireSession`; any other path redirects to `/`.
 - `AuthProvider` signs in with `POST /api/auth/login` followed by `GET /api/auth/me`, and keeps the token and account in React state only (ADR 0003). Registering creates the account and then signs in. Logging out clears the query cache, so one account's results never show to the next.
 - `useApi` adds the bearer token to every request. A `401` on a signed-in request ends the session and shows a notice, and the route guards return to sign in.
 - `DashboardPage` reads the filters and page number from the URL and fetches `GET /api/vehicles/search` under the query key `["vehicles", "search", filters, page]`. Categories are fetched once per session. After a purchase or restock, the listing returned by the API replaces the old copy in every cached page; after a create, edit, delete, or sold-out conflict, the search is fetched again.
 - `DashboardPage` shows one dialog at a time: a listing's details, the purchase confirmation, the add or edit form, restock, or delete. The details dialog hands over to the others, so Purchase or Edit there replaces it. Every dialog is a `Modal`, which traps Tab focus, closes on Escape, and returns focus to the control that opened it. The form loads the fuel and transmission lists from `GET /api/vehicles/spec-options` when it opens.
+- `PurchasesPage` reads the page number from the URL and fetches `GET /api/purchases/me` under the query key `["purchases", "me", page]`. The query is fetched again whenever the page opens, so a purchase just made on the dashboard is listed.
 - `apiRequest` turns the error envelope into an `ApiError`. Forms show field errors beside the matching input and anything else in a banner. Client errors (`4xx`) are never retried; server and network errors get one retry.
 
 ### A purchase, end to end
@@ -513,9 +515,16 @@ Vehicle purchase (`POST /api/vehicles/{id}/purchase`) buys exactly one unit and 
 
 - Any authenticated account may purchase, Administrators included; ADR 0007 and the glossary were updated to say so.
 - Success returns `200` with the updated listing, so the SPA can refresh the card and disable Purchase at zero. A purchase does not change the listing's `updated_at`, which tracks catalogue edits only.
-- Each purchase stores a durable record in `purchases` with the purchaser and snapshots of price, make, model, and category. Later edits never change those snapshots. Both foreign keys use `ON DELETE RESTRICT`, and `purchaser_id` is indexed for a future "my purchases" view.
+- Each purchase stores a durable record in `purchases` with the purchaser and snapshots of price, make, model, and category. Later edits never change those snapshots. Both foreign keys use `ON DELETE RESTRICT`, and `purchaser_id` is indexed for the My purchases view.
 - An out-of-stock listing returns `409 out_of_stock`; a missing or deleted listing returns `404`.
 - Stock is decremented by a single conditional `UPDATE ... WHERE quantity > 0 AND deleted_at IS NULL` in the same transaction as the purchase insert. A concurrency test fires 20 simultaneous purchases at a stock of 5 and expects exactly 5 successes, 15 conflicts, a final quantity of 0, and 5 purchase records. The commit history shows the naive read-then-write version failing that test (all 20 succeeded) before the atomic fix.
+
+Purchase history (`GET /api/purchases/me`) backs the SPA's My purchases page. Its open choices were resolved as follows:
+
+- Every signed-in account sees only its own purchases. Administrators can buy, so they have a history too; there is no view of other accounts' purchases.
+- Each item is the stored record: its ID, the listing ID, the make, model, category, and price copied at sale time, and `purchased_at`. Later edits never change it, and a purchase of a listing that was deleted afterwards is still listed.
+- Items are ordered newest first (`purchased_at DESC, id DESC`) and paged like the listing endpoints: `page` (at most 10,000), `page_size` (default 20, capped at 100), and `total`.
+- Photos are not part of the snapshot, so the history shows none.
 
 Vehicle restock (`POST /api/vehicles/{id}/restock`) adds stock and records a Stock Adjustment (ADR 0009). Its open choices were resolved as follows:
 
@@ -528,12 +537,13 @@ Vehicle restock (`POST /api/vehicles/{id}/restock`) adds stock and records a Sto
 
 The single-page app resolves the frontend's open choices as follows:
 
-- Routes are `/login`, `/register`, and a protected `/` dashboard. Anonymous visitors and unknown paths go to sign in; signed-in visitors skip the sign-in and registration pages. Registration signs the new account straight in.
+- Routes are `/login`, `/register`, a protected `/` dashboard, and a protected `/purchases` history. Anonymous visitors and unknown paths go to sign in; signed-in visitors skip the sign-in and registration pages. Registration signs the new account straight in.
 - The access token is held in memory only (ADR 0003), so a browser refresh requires signing in again. Any `401` on a signed-in request ends the session, clears cached data, and returns to sign in with a notice.
 - The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
 - The dashboard always uses the search endpoint and searches as you type. Text and price changes apply after a 300 ms pause, while a category choice, Enter, or Clear applies immediately. The applied filters and page number live in the URL, so back and forward restore them. Categories come from the API. Server validation errors appear beside the matching input.
 - Each vehicle card shows the listing's photo across the top, cropped to 16:10 and lazy-loaded, or a "No photo available" placeholder of the same shape when it has none or the photo fails to load. Below it are the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase opens a confirmation dialog that names the vehicle and its price; Cancel comes first and has focus, as in the delete dialog, and only "Confirm purchase" sends the request. The button is disabled at zero stock and while a purchase is in flight. A sold-out conflict closes the dialog, is announced, and refreshes the results.
 - Clicking a card's photo or name opens its details dialog. The name is a button, so keyboard and screen reader users reach it; the photo is an extra mouse target. The dialog shows the photo, the category, year and colour, the price and stock, then the spec sheet in titled sections: Overview (the description), Engine & performance (fuel, engine or battery, power, transmission), and Practicality (seats, mileage or range). Rows without a value are left out, and a listing with no specs says "No specifications yet." Close sits first, in the corner, so it takes focus. Purchase hands over to the usual confirmation and is disabled when sold out, and administrators also get the card's Edit, Restock, and Delete in the same order and styles.
+- The header links to Inventory and My purchases for every signed-in account and marks the current page. My purchases lists each purchase newest first with its category, make and model, the INR price paid, and the date and time in the viewer's time zone. It pages like the dashboard, keeps the page number in the URL, explains an empty history with a link back to the inventory, and shows a failed load in a banner.
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, the add and edit form has an optional Photo URL field (blank means no photo) and the spec sheet in the same three sections, with fuel type and transmission as dropdowns fed by `/api/vehicles/spec-options`, and the delete confirmation focuses Cancel first.
 - The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
 - Dialogs focus their first control, keep Tab and Shift+Tab inside themselves, close on Escape, and return focus to the control that opened them. If that control has left the page, for example the card of a listing that was just deleted, focus is not moved.
@@ -600,3 +610,5 @@ After that I asked Claude Code for a popup with each car's details, in sections,
 When I asked Claude Code to push the merged changes to Vercel, it checked the project's deployments and found that the Vercel project had never been connected to Git: production was still the manual deployment from hours earlier, while CI had been migrating the database. It waited for CI's migration job to finish, deployed `main` from a clean checkout without any `.env` files, and confirmed on the live site that the new code was serving. It recommended deploying from CI after the migration rather than connecting Vercel's Git integration, which would deploy in parallel and could briefly run new code against the old schema. At my request it added that deploy job, tested its missing-secret guard locally, and corrected the README, which still described the Git integration and preview deployments.
 
 To finish, I asked Claude Code to update the README and its screenshots to match these changes. It captured six new screenshots with Playwright from the local demo, at the same sizes as before and saved as JPEG so the photos stay light: the sign-in page, the administrator dashboard, the new details dialog, the edit form with its spec sections, a filtered search with the purchase confirmation, and the phone layout. It drove the pages through the demo login buttons and the filter bar, because reloading a page signs out, and it never confirmed a purchase or saved a form. It reviewed each image before replacing the old ones.
+
+I then asked Claude Code to implement the My purchases page. It found that the `purchases` table already held every sale with an index on `purchaser_id`, but no endpoint read it, so it built `GET /api/purchases/me` first, test-first: one red-green cycle for an account's own purchases newest first, one for paging like the catalogue, and a refactor that shares the page-size cap. It then built the page in four red-green cycles: the list opened from a new header link, the empty state, paging, and a banner for a failed load. It ran both suites before every green commit. Its first test run failed because my local backend virtual environment had been copied from another project, so its scripts pointed at that project's Python; it rebuilt the environment from the lockfile. Finally it ran its own API and dev server on spare ports, so another session's servers were left alone, signed in as the demo buyer, made one test purchase, and checked the page at phone and desktop widths.
