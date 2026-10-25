@@ -145,4 +145,20 @@ describe("Vehicle details", () => {
       within(dialog).getByRole("img", { name: "Tata Nexon" })
     ).toHaveAttribute("src", photo);
   });
+
+  it("lets a buyer purchase through the usual confirmation", async () => {
+    const { user, dialog } = await openDetails();
+    expect(
+      within(dialog).queryByRole("button", { name: "Edit" })
+    ).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Purchase" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Buy Tata Nexon?" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Tata Nexon" })
+    ).not.toBeInTheDocument();
+  });
 });
