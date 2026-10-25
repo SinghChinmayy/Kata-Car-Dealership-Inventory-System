@@ -118,4 +118,22 @@ describe("Vehicle details", () => {
     expect(dialog).toHaveTextContent("No specifications yet.");
     expect(within(dialog).queryByRole("region")).not.toBeInTheDocument();
   });
+
+  it("also opens from the card's photo", async () => {
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(
+          page([listing({ image_url: "https://example.com/nexon.jpg" })])
+        )
+      )
+    );
+    const { user } = await renderSignedIn(buyer);
+    const card = await screen.findByRole("article", { name: "Tata Nexon" });
+
+    await user.click(within(card).getByRole("img", { name: "Tata Nexon" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Tata Nexon" })
+    ).toBeInTheDocument();
+  });
 });
