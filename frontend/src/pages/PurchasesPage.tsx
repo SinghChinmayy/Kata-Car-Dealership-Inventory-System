@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
+import { splitErrors } from "../api/client";
 import type { PurchasePage } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
+import { FormAlert } from "../components/FormAlert";
 import { Pagination } from "../components/Pagination";
 import { textLink } from "../components/buttonStyles";
 import { formatDateTime, formatPrice } from "../format";
@@ -16,6 +18,8 @@ export function PurchasesPage() {
     queryKey: ["purchases", "me", page],
     queryFn: () => api<PurchasePage>("/api/purchases/me", { query: { page } })
   });
+  // No inputs here, so even a field error (a hand-edited ?page=) goes in the banner.
+  const { alert } = splitErrors(purchases.error, []);
 
   return (
     <div className="min-h-screen">
@@ -29,6 +33,11 @@ export function PurchasesPage() {
             ? `${purchases.data.total} ${purchases.data.total === 1 ? "purchase" : "purchases"}`
             : "\u00a0"}
         </p>
+        {alert && (
+          <div className="mt-6">
+            <FormAlert message={alert} />
+          </div>
+        )}
         {purchases.isPending && (
           <p className="mt-6 text-sm text-zinc-500">Loading purchases…</p>
         )}
