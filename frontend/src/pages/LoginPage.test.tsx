@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buyer } from "../test/fixtures";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -63,5 +63,50 @@ describe("Login", () => {
       "Email or password is incorrect."
     );
     expect(screen.getByRole("button", { name: /sign in/i })).toBeEnabled();
+  });
+
+  describe("demo accounts", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("shows the published demo logins and signs in with one of them", async () => {
+      vi.stubEnv("VITE_DEMO_ADMIN_EMAIL", "demo.admin@example.com");
+      vi.stubEnv("VITE_DEMO_ADMIN_PASSWORD", "demo-admin-password");
+      vi.stubEnv("VITE_DEMO_BUYER_EMAIL", "demo.buyer@example.com");
+      vi.stubEnv("VITE_DEMO_BUYER_PASSWORD", "demo-buyer-password");
+      let loginBody: unknown;
+      server.use(
+        http.post("*/api/auth/login", async ({ request }) => {
+          loginBody = await request.json();
+          return HttpResponse.json({
+            access_token: "token-1",
+            token_type: "bearer"
+          });
+        }),
+        http.get("*/api/auth/me", () => HttpResponse.json(buyer))
+      );
+      const { user } = renderApp("/login");
+
+      const demo = screen.getByRole("region", { name: /demo accounts/i });
+      expect(demo).toHaveTextContent("demo.admin@example.com");
+      expect(demo).toHaveTextContent("demo-admin-password");
+      expect(demo).toHaveTextContent("demo.buyer@example.com");
+      expect(demo).toHaveTextContent("demo-buyer-password");
+
+      await user.click(screen.getByRole("button", { name: /use demo buyer/i }));
+      expect(screen.getByLabelText(/email/i)).toHaveValue(
+        "demo.buyer@example.com"
+      );
+      await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+      expect(
+        await screen.findByRole("button", { name: /log out/i })
+      ).toBeInTheDocument();
+      expect(loginBody).toEqual({
+        email: "demo.buyer@example.com",
+        password: "demo-buyer-password"
+      });
+    });
   });
 });
