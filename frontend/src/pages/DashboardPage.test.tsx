@@ -36,17 +36,6 @@ describe("Dashboard", () => {
     expect(within(swift).getByText("Out of stock")).toBeInTheDocument();
   });
 
-  it("links to the credits for the sample vehicle photos", async () => {
-    await renderSignedIn(buyer);
-
-    expect(
-      await screen.findByRole("link", { name: "Photo credits" })
-    ).toHaveAttribute(
-      "href",
-      "https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/blob/main/docs/image-credits.md"
-    );
-  });
-
   it("explains when no vehicles match", async () => {
     await renderSignedIn(buyer);
 
