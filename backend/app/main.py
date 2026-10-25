@@ -225,6 +225,22 @@ def spec_values(payload: VehicleCatalogueFields) -> dict[str, Any]:
     }
 
 
+class PurchaseOut(BaseModel):
+    """A sale as recorded: the catalogue fields are snapshots, not the listing's current values."""
+
+    id: UUID
+    listing_id: UUID
+    make: str
+    model: str
+    category: str
+    price: Decimal
+    purchased_at: datetime
+
+
+class PurchasePageOut(BaseModel):
+    items: list[PurchaseOut]
+
+
 def listing_not_found() -> DomainError:
     """Missing and retired listings look the same: neither is an active resource."""
     return DomainError(404, "not_found", "The requested resource does not exist.")
@@ -792,6 +808,26 @@ def create_app() -> FastAPI:
         )
         session.commit()
         return VehicleListingOut(**listing)
+
+    @app.get("/api/purchases/me", response_model=PurchasePageOut, tags=["purchases"])
+    def list_my_purchases(
+        purchaser: UserOut = Depends(get_current_user),  # noqa: B008
+        session: Session = Depends(get_db_session),  # noqa: B008
+    ) -> PurchasePageOut:
+        """Return the signed-in account's purchases, newest first."""
+        purchases = (
+            session.execute(
+                text(
+                    "SELECT id, listing_id, make, model, category, price, purchased_at "
+                    "FROM purchases WHERE purchaser_id = :purchaser_id "
+                    "ORDER BY purchased_at DESC, id DESC"
+                ),
+                {"purchaser_id": purchaser.id},
+            )
+            .mappings()
+            .all()
+        )
+        return PurchasePageOut(items=[PurchaseOut(**purchase) for purchase in purchases])
 
     return app
 
