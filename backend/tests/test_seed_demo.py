@@ -86,3 +86,69 @@ def test_seed_demo_refuses_an_email_registered_with_another_role(
 
     assert "demo.admin@example.com" in str(exited.value)
     assert accounts(postgres_engine)["demo.admin@example.com"]["role"] == "standard_user"
+
+
+def active_listings(postgres_engine) -> list[tuple]:
+    with postgres_engine.connect() as connection:
+        return [
+            tuple(row)
+            for row in connection.execute(
+                text(
+                    "SELECT make, model, category, price, quantity FROM vehicle_listings "
+                    "WHERE deleted_at IS NULL ORDER BY make, model"
+                )
+            )
+        ]
+
+
+def test_seed_demo_resets_the_catalogue_to_sample_vehicles(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """A vandalised catalogue goes back to the samples; old listings and purchases are kept."""
+    from uuid import uuid4
+
+    configure(monkeypatch, postgres_url)
+    from app.main import VehicleCategory
+    from app.scripts.seed_demo import main
+
+    main()
+    first_samples = active_listings(postgres_engine)
+    with postgres_engine.begin() as connection:
+        buyer_id = connection.execute(
+            text("SELECT id FROM user_accounts WHERE email = 'demo.buyer@example.com'")
+        ).scalar_one()
+        vandal_listing = uuid4()
+        connection.execute(
+            text(
+                "INSERT INTO vehicle_listings (id, make, model, category, price, quantity) "
+                "VALUES (:id, 'Vandal', 'Junk', 'Van', 1, 1)"
+            ),
+            {"id": vandal_listing},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO purchases (id, listing_id, purchaser_id, price, make, model, "
+                "category) VALUES (:id, :listing, :buyer, 1, 'Vandal', 'Junk', 'Van')"
+            ),
+            {"id": uuid4(), "listing": vandal_listing, "buyer": buyer_id},
+        )
+        connection.execute(text("UPDATE vehicle_listings SET quantity = 0 WHERE make != 'Vandal'"))
+
+    main()
+
+    assert len(first_samples) >= 6
+    assert {listing[2] for listing in first_samples} <= {c.value for c in VehicleCategory}
+    assert any(listing[4] == 0 for listing in first_samples), "show one sold-out card"
+    assert active_listings(postgres_engine) == first_samples
+    with postgres_engine.connect() as connection:
+        vandal = connection.execute(
+            text(
+                "SELECT l.deleted_at IS NOT NULL AS deleted, a.email AS deleted_by "
+                "FROM vehicle_listings l JOIN user_accounts a ON a.id = l.deleted_by "
+                "WHERE l.id = :id"
+            ),
+            {"id": vandal_listing},
+        ).one()
+        purchases = connection.execute(text("SELECT count(*) FROM purchases")).scalar_one()
+    assert vandal.deleted and vandal.deleted_by == "demo.admin@example.com"
+    assert purchases == 1
