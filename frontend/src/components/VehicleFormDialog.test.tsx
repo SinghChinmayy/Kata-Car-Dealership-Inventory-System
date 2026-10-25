@@ -134,9 +134,10 @@ describe("Vehicle form errors", () => {
 describe("Edit vehicle", () => {
   it("prefills the listing, sends only catalogue fields and updates the card", async () => {
     let updated: unknown;
+    const photo = "https://example.com/nexon.jpg";
     server.use(
       http.get("*/api/vehicles/search", () =>
-        HttpResponse.json(page([listing()]))
+        HttpResponse.json(page([listing({ image_url: photo })]))
       ),
       http.put("*/api/vehicles/:id", async ({ request }) => {
         updated = await request.json();
@@ -151,6 +152,10 @@ describe("Edit vehicle", () => {
     const dialog = screen.getByRole("dialog", { name: "Edit vehicle" });
     expect(within(dialog).getByLabelText("Make")).toHaveValue("Tata");
     expect(within(dialog).queryByLabelText("Quantity")).not.toBeInTheDocument();
+    // A full replacement: the current photo is sent back so saving keeps it.
+    expect(within(dialog).getByLabelText("Photo URL (optional)")).toHaveValue(
+      photo
+    );
     server.use(
       http.get("*/api/vehicles/search", () =>
         HttpResponse.json(
@@ -174,7 +179,8 @@ describe("Edit vehicle", () => {
       make: "Tata",
       model: "Nexon EV",
       category: "SUV",
-      price: "1499999.50"
+      price: "1499999.50",
+      image_url: photo
     });
     expect(screen.getByRole("status")).toHaveTextContent(
       "Updated Tata Nexon EV"
