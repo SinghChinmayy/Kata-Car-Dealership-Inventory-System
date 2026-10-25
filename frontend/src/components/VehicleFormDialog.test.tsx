@@ -129,6 +129,36 @@ describe("Vehicle form errors", () => {
       await within(dialog).findByLabelText("Category")
     ).toHaveAccessibleDescription("Input should be a listed category");
   });
+
+  it("shows a photo URL error under the photo field", async () => {
+    const message =
+      "Enter a full web address starting with http:// or https://.";
+    server.use(
+      http.post("*/api/vehicles", () =>
+        apiError(422, "validation_error", "Request validation failed.", {
+          image_url: message
+        })
+      )
+    );
+    const { user } = await renderSignedIn(administrator);
+    await user.click(screen.getByRole("button", { name: "Add vehicle" }));
+    const dialog = screen.getByRole("dialog", { name: "Add vehicle" });
+
+    await user.type(within(dialog).getByLabelText("Make"), "Tata");
+    await user.type(within(dialog).getByLabelText("Model"), "Nexon");
+    await user.selectOptions(within(dialog).getByLabelText("Category"), "SUV");
+    await user.type(within(dialog).getByLabelText("Price (₹)"), "100");
+    await user.type(within(dialog).getByLabelText("Quantity"), "1");
+    await user.type(
+      within(dialog).getByLabelText("Photo URL (optional)"),
+      "nexon.jpg"
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(
+      await within(dialog).findByLabelText("Photo URL (optional)")
+    ).toHaveAccessibleDescription(message);
+  });
 });
 
 describe("Edit vehicle", () => {
