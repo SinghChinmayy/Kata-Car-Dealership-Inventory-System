@@ -36,4 +36,30 @@ describe("Purchase vehicle", () => {
     );
     expect(purchases).toBe(1);
   });
+
+  it("focuses Cancel first and buys nothing when cancelled", async () => {
+    let purchases = 0;
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(page([listing()]))
+      ),
+      http.post("*/api/vehicles/:id/purchase", () => {
+        purchases += 1;
+        return HttpResponse.json(listing({ quantity: 2 }));
+      })
+    );
+    const { user } = await renderSignedIn(buyer);
+    const card = await screen.findByRole("article", { name: "Tata Nexon" });
+
+    await user.click(within(card).getByRole("button", { name: "Purchase" }));
+    const cancel = within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Cancel"
+    });
+    expect(cancel).toHaveFocus();
+    await user.click(cancel);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(within(card).getByText("3 in stock")).toBeInTheDocument();
+    expect(purchases).toBe(0);
+  });
 });
