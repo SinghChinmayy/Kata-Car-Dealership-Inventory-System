@@ -21,7 +21,7 @@ def commons_photo(file_path: str) -> str:
 
 
 # (make, model, category, price in INR, quantity, photo); one is sold out to show that state.
-# The photos are openly licensed Wikimedia Commons files, credited in docs/image-credits.md.
+# The photos are public-domain or CC0 Wikimedia Commons files, which need no attribution.
 SAMPLE_LISTINGS = [
     (
         "Tata",
@@ -33,11 +33,11 @@ SAMPLE_LISTINGS = [
     ),
     (
         "Mahindra",
-        "XUV700",
+        "XUV 3XO",
         "SUV",
-        Decimal("1899000.00"),
+        Decimal("1149000.00"),
         3,
-        commons_photo("b/ba/2021_Mahindra_XUV700_2.2_AX7_%28India%29_front_view.png"),
+        commons_photo("1/16/Mahindra_XUV_3XO_2025.jpg"),
     ),
     (
         "Hyundai",
@@ -45,7 +45,7 @@ SAMPLE_LISTINGS = [
         "SUV",
         Decimal("1450000.00"),
         4,
-        commons_photo("7/7f/2021_Hyundai_Creta_SX%28O%29_CRDi_%28India%29_front_view.jpg"),
+        commons_photo("9/9d/Hyundai_Creta_orange.jpg"),
     ),
     (
         "Maruti Suzuki",
@@ -53,7 +53,7 @@ SAMPLE_LISTINGS = [
         "Hatchback",
         Decimal("699000.00"),
         8,
-        commons_photo("9/9a/2018_Suzuki_Swift_SZ5_Boosterjet_SHVS_1.0_Front.jpg"),
+        commons_photo("3/33/SUZUKI_SWIFT_XR-Limited_2018_Front.jpg"),
     ),
     (
         "Honda",
@@ -61,7 +61,7 @@ SAMPLE_LISTINGS = [
         "Sedan",
         Decimal("1350000.00"),
         2,
-        commons_photo("9/98/Honda_City_%28fifth_generation%29_facelift.jpg"),
+        commons_photo("1/18/Honda_City_5th_gen.jpg"),
     ),
     (
         "Toyota",
@@ -69,7 +69,7 @@ SAMPLE_LISTINGS = [
         "Truck",
         Decimal("3740000.00"),
         1,
-        commons_photo("8/81/Toyota_HiLux_GR_Sport_1X7A7281.jpg"),
+        commons_photo("0/08/2026_Toyota_Hilux_Z.jpg"),
     ),
     (
         "Kia",
@@ -77,7 +77,7 @@ SAMPLE_LISTINGS = [
         "Van",
         Decimal("6390000.00"),
         2,
-        commons_photo("f/f7/2021_Kia_Carnival_SXL.jpg"),
+        commons_photo("1/12/22_Kia_Carnival_SX.jpg"),
     ),
     (
         "Ford",
@@ -85,7 +85,7 @@ SAMPLE_LISTINGS = [
         "Coupe",
         Decimal("7500000.00"),
         0,
-        commons_photo("5/5d/2018_Ford_Mustang_GT_5.0_Front.jpg"),
+        commons_photo("3/3e/2024_Ford_Mustang_GT_5.0_v8.jpg"),
     ),
 ]
 
