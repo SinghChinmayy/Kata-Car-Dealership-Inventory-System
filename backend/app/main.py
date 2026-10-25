@@ -239,6 +239,9 @@ class PurchaseOut(BaseModel):
 
 class PurchasePageOut(BaseModel):
     items: list[PurchaseOut]
+    total: int
+    page: int
+    page_size: int
 
 
 def listing_not_found() -> DomainError:
@@ -813,21 +816,37 @@ def create_app() -> FastAPI:
     def list_my_purchases(
         purchaser: UserOut = Depends(get_current_user),  # noqa: B008
         session: Session = Depends(get_db_session),  # noqa: B008
+        page: int = Query(default=1, ge=1, le=MAX_PAGE),
+        page_size: int = Query(default=20, ge=1),
     ) -> PurchasePageOut:
-        """Return the signed-in account's purchases, newest first."""
+        """Return the signed-in account's purchases, newest first, one page at a time."""
+        effective_page_size = min(page_size, 100)
+        params = {"purchaser_id": purchaser.id}
+        total = session.execute(
+            text("SELECT COUNT(*) FROM purchases WHERE purchaser_id = :purchaser_id"), params
+        ).scalar_one()
         purchases = (
             session.execute(
                 text(
                     "SELECT id, listing_id, make, model, category, price, purchased_at "
                     "FROM purchases WHERE purchaser_id = :purchaser_id "
-                    "ORDER BY purchased_at DESC, id DESC"
+                    "ORDER BY purchased_at DESC, id DESC LIMIT :limit OFFSET :offset"
                 ),
-                {"purchaser_id": purchaser.id},
+                {
+                    **params,
+                    "limit": effective_page_size,
+                    "offset": (page - 1) * effective_page_size,
+                },
             )
             .mappings()
             .all()
         )
-        return PurchasePageOut(items=[PurchaseOut(**purchase) for purchase in purchases])
+        return PurchasePageOut(
+            items=[PurchaseOut(**purchase) for purchase in purchases],
+            total=total,
+            page=page,
+            page_size=effective_page_size,
+        )
 
     return app
 
