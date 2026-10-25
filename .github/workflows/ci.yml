@@ -1,0 +1,209 @@
+# Runs every check on pull requests and pushes to main; on main, once all of them pass,
+# applies Alembic migrations to the production Neon database.
+# Vercel deploys main through its Git integration alongside this workflow, so branch
+# protection (these checks required on main) is what keeps failing code from shipping,
+# and migrations must stay backward compatible with the code that is still live.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer commit on a pull request supersedes its older run. Runs on main are never
+# cancelled, so a migration is never interrupted halfway.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # Node 24 matches the Vercel project's build image.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          (cd backend && uv sync --frozen)
+          (cd frontend && npm ci)
+
+      - name: Lint and check formatting
+        run: make lint
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Testcontainers starts its own PostgreSQL through the runner's Docker daemon.
+      - name: Test with coverage
+        run: >-
+          uv run pytest
+          --cov=app --cov-report=term-missing --cov-report=xml:reports/coverage.xml
+          --cov-fail-under=95
+          --junitxml=reports/junit.xml
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: |
+            backend/reports/junit.xml
+            backend/reports/coverage.xml
+          retention-days: 14
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      # The same type-check and bundle Vercel runs, so a broken build fails here first.
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: End-to-end journey
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # e2e/env.ts expects these credentials on localhost:5432, like `make db-up`. Playwright
+    # starts the API and Vite itself; the API recreates its own dealership_e2e database.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: dealership
+          POSTGRES_USER: dealership
+          POSTGRES_PASSWORD: dealership
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealership -d dealership"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          (cd ../backend && uv sync --frozen)
+          npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run journey
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
+  migrate:
+    name: Migrate production database
+    needs: [lint, backend, frontend, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Never run two migrations against the same database at once; queue instead of cancelling.
+    concurrency:
+      group: migrate-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-dev
+
+      # Runs on every push to main: at head already, `alembic upgrade head` changes nothing.
+      - name: Apply migrations
+        env:
+          # Neon's direct URL: migrations must not go through the transaction pooler.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Repository secret DATABASE_URL_UNPOOLED is not set."
+            exit 1
+          fi
+          # Settings refuse to load without JWT_SECRET; migrations sign no tokens.
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          uv run --no-dev alembic upgrade head
+          uv run --no-dev alembic current
