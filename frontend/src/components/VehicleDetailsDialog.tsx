@@ -23,9 +23,10 @@ export function VehicleDetailsDialog({
   admin
 }: Props) {
   const inStock = listing.quantity > 0;
-  const summary = [listing.category, listing.year, listing.colour]
-    .filter((part) => part !== null)
-    .join(" · ");
+  // Year and colour follow the category, which keeps the card's small-caps label style.
+  const details = [listing.year, listing.colour].filter(
+    (part) => part !== null
+  );
   return (
     <Modal title={`${listing.make} ${listing.model}`} onClose={onClose} wide>
       {/* First in the dialog, so opening it focuses Close rather than an action. */}
@@ -40,8 +41,11 @@ export function VehicleDetailsDialog({
       <div className="mt-4 overflow-hidden rounded-lg">
         <VehiclePhoto key={listing.image_url} listing={listing} />
       </div>
-      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">
-        {summary}
+      <p className="mt-4 text-sm text-zinc-500">
+        <span className="text-xs font-medium uppercase tracking-wide">
+          {listing.category}
+        </span>
+        {details.map((part) => ` · ${part}`)}
       </p>
       <p className="mt-4 text-2xl font-semibold tabular-nums tracking-tight text-zinc-900">
         {formatPrice(listing.price)}
