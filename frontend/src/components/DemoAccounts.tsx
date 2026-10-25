@@ -47,22 +47,20 @@ export function DemoAccounts({
       </p>
       <ul className="mt-3 space-y-3">
         {accounts.map((account) => (
-          <li
-            key={account.role}
-            className="flex items-center justify-between gap-3"
-          >
-            <dl className="min-w-0 text-xs">
+          <li key={account.role} className="space-y-2">
+            {/* Full width and wrapping: testers must be able to read every character. */}
+            <dl className="text-xs">
               <dt className="font-medium capitalize text-zinc-900">
                 {account.role}
               </dt>
-              <dd className="truncate text-zinc-600">{account.email}</dd>
-              <dd className="truncate font-mono text-zinc-600">
+              <dd className="break-all text-zinc-600">{account.email}</dd>
+              <dd className="break-all font-mono text-zinc-600">
                 {account.password}
               </dd>
             </dl>
             <button
               type="button"
-              className={secondaryButton}
+              className={`${secondaryButton} w-full`}
               onClick={() => onUse(account.email, account.password)}
             >
               Use demo {account.role}
