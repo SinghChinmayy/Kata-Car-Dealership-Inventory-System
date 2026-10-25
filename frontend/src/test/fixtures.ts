@@ -36,6 +36,19 @@ export function listing(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+export function purchase(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "c0ffee00-0000-4000-8000-000000000001",
+    listing_id: "a1b2c3d4-0000-4000-8000-000000000001",
+    make: "Tata",
+    model: "Nexon",
+    category: "SUV",
+    price: "1250000.00",
+    purchased_at: "2026-10-24T06:30:00Z",
+    ...overrides
+  };
+}
+
 export function page(
   items: unknown[],
   extra: Partial<Record<string, number>> = {}
