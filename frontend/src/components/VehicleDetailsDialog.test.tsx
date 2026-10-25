@@ -161,4 +161,13 @@ describe("Vehicle details", () => {
       screen.queryByRole("dialog", { name: "Tata Nexon" })
     ).not.toBeInTheDocument();
   });
+
+  it("disables Purchase when the car is sold out", async () => {
+    const { dialog } = await openDetails({ quantity: 0 });
+
+    expect(dialog).toHaveTextContent("Out of stock");
+    expect(
+      within(dialog).getByRole("button", { name: "Purchase" })
+    ).toBeDisabled();
+  });
 });
