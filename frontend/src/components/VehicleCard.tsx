@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
 import { dangerTextButton, primaryButton, textButton } from "./buttonStyles";
@@ -25,7 +25,8 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
       aria-labelledby={titleId}
       className="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white"
     >
-      <VehiclePhoto listing={listing} />
+      {/* Keyed by URL so a new photo gets a fresh try after an earlier one failed. */}
+      <VehiclePhoto key={listing.image_url} listing={listing} />
       <div className="flex flex-1 flex-col p-5">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
           {listing.category}
@@ -88,9 +89,13 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
 
 const photoFrame = "aspect-[16/10] w-full bg-zinc-100";
 
-/** The listing's photo, or a placeholder of the same shape so every card lines up. */
+/**
+ * The listing's photo, or a placeholder of the same shape so every card lines up. A photo
+ * that fails to load is replaced by the placeholder too.
+ */
 function VehiclePhoto({ listing }: { listing: VehicleListing }) {
-  if (!listing.image_url) {
+  const [failed, setFailed] = useState(false);
+  if (!listing.image_url || failed) {
     return (
       <div
         role="img"
@@ -107,6 +112,7 @@ function VehiclePhoto({ listing }: { listing: VehicleListing }) {
       alt={`${listing.make} ${listing.model}`}
       loading="lazy"
       decoding="async"
+      onError={() => setFailed(true)}
       className={`${photoFrame} object-cover`}
     />
   );
