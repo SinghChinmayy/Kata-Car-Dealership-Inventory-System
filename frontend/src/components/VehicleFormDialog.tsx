@@ -27,7 +27,8 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
     model: listing?.model ?? "",
     category: listing?.category ?? "",
     price: listing?.price ?? "",
-    quantity: ""
+    quantity: "",
+    image_url: listing?.image_url ?? ""
   });
   const set = (key: keyof typeof form) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -47,7 +48,12 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
           })
         : api<VehicleListing>("/api/vehicles", {
             method: "POST",
-            body: { ...catalogue, quantity: Number(form.quantity) }
+            body: {
+              ...catalogue,
+              quantity: Number(form.quantity),
+              // A blank field means no photo.
+              image_url: form.image_url.trim() || null
+            }
           });
     },
     onSuccess: (saved) => {
@@ -119,6 +125,14 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             onChange={(event) => set("quantity")(event.target.value)}
           />
         )}
+        <TextField
+          label="Photo URL (optional)"
+          className="sm:col-span-2"
+          inputMode="url"
+          placeholder="https://…"
+          value={form.image_url}
+          onChange={(event) => set("image_url")(event.target.value)}
+        />
         <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
           <button type="button" className={secondaryButton} onClick={onClose}>
             Cancel
