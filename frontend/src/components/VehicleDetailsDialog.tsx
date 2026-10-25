@@ -42,6 +42,7 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
           specs={[
             ["Fuel", listing.fuel_type],
             ["Engine", withUnit(listing.engine_cc, "cc")],
+            ["Battery", withUnit(listing.battery_kwh, "kWh")],
             ["Power", withUnit(listing.power_bhp, "bhp")],
             ["Transmission", listing.transmission]
           ]}
@@ -50,7 +51,8 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
           title="Practicality"
           specs={[
             ["Seats", listing.seats === null ? null : String(listing.seats)],
-            ["Mileage", withUnit(listing.mileage_kmpl, "km/l")]
+            ["Mileage", withUnit(listing.mileage_kmpl, "km/l")],
+            ["Range", withUnit(listing.range_km, "km")]
           ]}
         />
       </div>
