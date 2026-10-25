@@ -35,6 +35,15 @@ class Settings(BaseSettings):
             )
         return value
 
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_driver(cls, value: str) -> str:
+        """Hosted Postgres (e.g. Neon) gives postgres:// URLs; SQLAlchemy needs psycopg."""
+        for scheme in ("postgres://", "postgresql://"):
+            if value.startswith(scheme):
+                return "postgresql+psycopg://" + value[len(scheme) :]
+        return value
+
     @field_validator("allowed_cors_origins", mode="before")
     @classmethod
     def split_origins(cls, value: object) -> object:

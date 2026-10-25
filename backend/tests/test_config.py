@@ -77,7 +77,7 @@ def test_strong_jwt_secret_is_accepted(monkeypatch) -> None:
     ids=["postgres", "postgresql", "already-psycopg"],
 )
 def test_hosted_database_urls_use_the_psycopg_driver(monkeypatch, raw: str) -> None:
-    """Hosted Postgres (e.g. Neon on Vercel) hands out postgres:// URLs; SQLAlchemy needs psycopg."""
+    """Hosted Postgres (e.g. Neon on Vercel) gives postgres:// URLs; SQLAlchemy needs psycopg."""
     monkeypatch.setenv("JWT_SECRET", "s" * 32)
     monkeypatch.setenv("DATABASE_URL", raw)
 
