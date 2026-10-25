@@ -58,4 +58,30 @@ describe("My purchases", () => {
       await screen.findByRole("heading", { name: "Inventory" })
     ).toBeInTheDocument();
   });
+
+  it("pages through a long history", async () => {
+    const requestedPages: (string | null)[] = [];
+    server.use(
+      http.get("*/api/purchases/me", ({ request }) => {
+        const requested = new URL(request.url).searchParams.get("page");
+        requestedPages.push(requested);
+        return requested === "2"
+          ? HttpResponse.json(
+              page([purchase({ model: "Harrier" })], { total: 21, page: 2 })
+            )
+          : HttpResponse.json(page([purchase()], { total: 21 }));
+      })
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.click(screen.getByRole("link", { name: "My purchases" }));
+    expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Tata Harrier" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(requestedPages).toEqual([null, "2"]);
+  });
 });
