@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
-type Props = { title: string; onClose: () => void; children: ReactNode };
+type Props = {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  /** Room for a two-column layout, e.g. vehicle details. */
+  wide?: boolean;
+};
 
 const FOCUSABLE =
   "a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -9,7 +15,7 @@ const FOCUSABLE =
  * Accessible modal: labelled by its title, focuses its first control, keeps Tab inside
  * itself, closes on Escape, and hands focus back to its opener when it closes.
  */
-export function Modal({ title, onClose, children }: Props) {
+export function Modal({ title, onClose, children, wide = false }: Props) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
 
@@ -41,7 +47,7 @@ export function Modal({ title, onClose, children }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl"
+        className={`max-h-full w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl`}
       >
         <h2
           id={titleId}
