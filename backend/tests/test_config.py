@@ -67,6 +67,25 @@ def test_strong_jwt_secret_is_accepted(monkeypatch) -> None:
     assert Settings(_env_file=None).jwt_secret == "s" * 32
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "postgres://user:pass@db.example.com/dealership?sslmode=require",
+        "postgresql://user:pass@db.example.com/dealership?sslmode=require",
+        "postgresql+psycopg://user:pass@db.example.com/dealership?sslmode=require",
+    ],
+    ids=["postgres", "postgresql", "already-psycopg"],
+)
+def test_hosted_database_urls_use_the_psycopg_driver(monkeypatch, raw: str) -> None:
+    """Hosted Postgres (e.g. Neon on Vercel) hands out postgres:// URLs; SQLAlchemy needs psycopg."""
+    monkeypatch.setenv("JWT_SECRET", "s" * 32)
+    monkeypatch.setenv("DATABASE_URL", raw)
+
+    assert Settings(_env_file=None).database_url == (
+        "postgresql+psycopg://user:pass@db.example.com/dealership?sslmode=require"
+    )
+
+
 def test_env_file_is_found_from_any_working_directory() -> None:
     """The repository-root .env loads whether the API starts from backend/ or elsewhere."""
     repository_root = Path(__file__).resolve().parents[2]
