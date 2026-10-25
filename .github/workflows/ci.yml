@@ -1,8 +1,9 @@
-# Runs every check on pull requests and pushes to main; on main, once all of them pass,
-# applies Alembic migrations to the production Neon database.
-# Vercel deploys main through its Git integration alongside this workflow, so branch
-# protection (these checks required on main) is what keeps failing code from shipping,
-# and migrations must stay backward compatible with the code that is still live.
+# Runs every check on pull requests and pushes to main. On main, once all of them pass, it
+# applies Alembic migrations to the production Neon database and then deploys to Vercel.
+# This workflow is the only path to production (the Vercel project has no Git
+# integration), so branch protection on main is what keeps failing code from shipping.
+# Old code keeps serving while the migration runs, so migrations must stay backward
+# compatible with it; new code is only deployed once its migration has succeeded.
 name: CI
 
 on:
@@ -207,3 +208,41 @@ jobs:
           export JWT_SECRET="$(openssl rand -hex 32)"
           uv run --no-dev alembic upgrade head
           uv run --no-dev alembic current
+
+  deploy:
+    name: Deploy to Vercel
+    needs: [migrate]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Deploys only after the migration, so new code never runs against the old schema.
+    # One production deployment at a time, in push order; never cancel one halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://car-dealership-inventory-umber.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # Vercel builds remotely from the uploaded source, as `vercel deploy --prod` does from a
+      # laptop; .vercelignore keeps local secrets and build output out of the upload.
+      - name: Deploy to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Identify the project without a linked .vercel folder.
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set: add the VERCEL_TOKEN secret and the VERCEL_ORG_ID and VERCEL_PROJECT_ID variables."
+              exit 1
+            fi
+          done
+          npx --yes vercel@65.2.0 deploy --prod --yes --token "$VERCEL_TOKEN"
