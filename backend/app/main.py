@@ -78,6 +78,8 @@ class VehicleCatalogueFields(BaseModel):
     model: str = Field(min_length=1, max_length=100)
     category: VehicleCategory
     price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
+    # Optional; a full update without it clears the photo.
+    image_url: Optional[str] = Field(default=None, max_length=2048)
 
     @field_validator("make", "model", mode="before")
     @classmethod
@@ -89,7 +91,6 @@ class VehicleCatalogueFields(BaseModel):
 class CreateVehicleRequest(VehicleCatalogueFields):
     # A business cap that catches typos; restock may grow stock up to MAX_STOCK_QUANTITY.
     quantity: int = Field(ge=0, le=MAX_INITIAL_QUANTITY)
-    image_url: Optional[str] = Field(default=None, max_length=2048)
 
 
 class UpdateVehicleRequest(VehicleCatalogueFields):
@@ -543,7 +544,8 @@ def create_app() -> FastAPI:
             session.execute(
                 text(
                     "UPDATE vehicle_listings SET make = :make, model = :model, "
-                    "category = :category, price = :price, updated_at = CURRENT_TIMESTAMP "
+                    "category = :category, price = :price, image_url = :image_url, "
+                    "updated_at = CURRENT_TIMESTAMP "
                     "WHERE id = :id AND deleted_at IS NULL "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
@@ -553,6 +555,7 @@ def create_app() -> FastAPI:
                     "model": payload.model,
                     "category": payload.category.value,
                     "price": payload.price,
+                    "image_url": payload.image_url,
                 },
             )
             .mappings()
