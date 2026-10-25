@@ -29,7 +29,7 @@ flowchart TB
     subgraph spa["React SPA, frontend/src"]
         direction TB
         pages["Pages<br/>LoginPage, RegisterPage, DashboardPage"]
-        components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog"]
+        components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog,<br/>PurchaseDialog, Modal"]
         guards["Routing and session<br/>App.tsx routes, GuestOnly, RequireSession, AuthProvider"]
         query["Server state<br/>TanStack Query cache, patchCachedListing"]
         client["API client<br/>useApi adds the token, apiRequest builds ApiError"]
@@ -431,7 +431,7 @@ The latest results are in [docs/test-report.md](docs/test-report.md): backend an
 
 `make e2e` (or `cd frontend && npm run e2e`) runs one Playwright journey in Chromium:
 1. An administrator signs in, adds a vehicle with one unit, and logs out.
-2. A new buyer registers, searches for that vehicle, and buys it.
+2. A new buyer registers, searches for that vehicle, and buys it, confirming the price in the purchase dialog.
 3. The test checks the confirmation and that the card shows "Out of stock" with Purchase disabled.
 
 Playwright starts the API and the Vite dev server itself. The API uses a separate `dealership_e2e` database, which is dropped, migrated, and seeded with its own administrator on every run; the reset script refuses any database whose name does not end in `_e2e`. Requirements:
@@ -506,10 +506,10 @@ The single-page app resolves the frontend's open choices as follows:
 - The access token is held in memory only (ADR 0003), so a browser refresh requires signing in again. Any `401` on a signed-in request ends the session, clears cached data, and returns to sign in with a notice.
 - The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
 - The dashboard always uses the search endpoint and searches as you type. Text and price changes apply after a 300 ms pause, while a category choice, Enter, or Clear applies immediately. The applied filters and page number live in the URL, so back and forward restore them. Categories come from the API. Server validation errors appear beside the matching input.
-- Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase happens in one click with no confirmation; the button is disabled at zero stock and while its request is in flight. A sold-out conflict is announced and the results refresh.
+- Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase opens a confirmation dialog that names the vehicle and its price; Cancel comes first and has focus, as in the delete dialog, and only "Confirm purchase" sends the request. The button is disabled at zero stock and while a purchase is in flight. A sold-out conflict closes the dialog, is announced, and refreshes the results.
 - Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
 - The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
-- Known accessibility gap: dialogs focus their first control and close on Escape, but they do not yet keep Tab focus inside the dialog or return focus to the button that opened them. Keyboard-only users can tab onto the page behind an open dialog.
+- Dialogs focus their first control, keep Tab and Shift+Tab inside themselves, close on Escape, and return focus to the control that opened them. If that control has left the page, for example the card of a listing that was just deleted, focus is not moved.
 - Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. One Playwright journey exercises the real stack end to end.
 
 ## My AI Usage
@@ -561,3 +561,5 @@ I then asked Claude Code to analyse the codebase and suggest features ranked by 
 For branch protection, I asked Claude Code what to enter in each field of GitHub's ruleset form, then created the ruleset myself. It recommended an empty bypass list, so the rules apply to me too; zero required approvals, because nobody else can approve my pull requests; and rebase-only merging, because squash merges would hide the red and green commits. When I asked it to check the saved ruleset through the GitHub API, it found that two settings had not been saved: the required-checks list was empty, so failing CI would not have blocked a merge, and squash merging was still allowed. With my go-ahead, it updated the ruleset through the API, changing only those two settings, and read it back to confirm.
 
 To document the architecture and workflows, I asked Claude Code to explain in this README how the system is built and how a change travels to production, then to add an architecture diagram and a link to the live demo. It read the backend, the frontend, `vercel.json`, the CI workflow, and the migrations first, so each diagram matches the code: a layered system diagram, the production and local setups, the data model, a purchase traced end to end, and the CI job graph next to the Vercel deployment it races. Before editing, it noticed that another session was committing a feature on the branch checked out in my working copy, so it made these changes on a separate branch from `main` to keep the documentation out of that feature's commits.
+
+To boost the project, I asked Claude Code to take the two quick wins from its ranked list: a purchase confirmation dialog and the dialog focus gap that this README listed as a known accessibility issue. It built them test-first on a branch, with a red and a green commit for each behavior: Tab stays inside a dialog, closing a dialog returns focus to its opener, Purchase asks for confirmation with the price, and the purchase dialog focuses Cancel first. The existing purchase tests and the Playwright journey gained the confirm step in the red commit, so they failed until the dialog existed. Before each green commit it ran both suites and the end-to-end journey and refreshed the test report. It then checked the dialog in the app's browser pane, confirming that focus wrapped from "Confirm purchase" back to Cancel and returned to the card's Purchase button on close.
