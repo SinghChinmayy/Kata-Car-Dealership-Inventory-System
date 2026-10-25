@@ -228,9 +228,22 @@ describe("Edit vehicle", () => {
   it("prefills the listing, sends only catalogue fields and updates the card", async () => {
     let updated: unknown;
     const photo = "https://example.com/nexon.jpg";
+    const specs = {
+      year: 2024,
+      colour: "Pure Grey",
+      description: "Compact SUV.",
+      fuel_type: "Petrol",
+      engine_cc: 1199,
+      battery_kwh: null,
+      power_bhp: 118,
+      transmission: "Manual",
+      seats: 5,
+      mileage_kmpl: "17.4",
+      range_km: null
+    };
     server.use(
       http.get("*/api/vehicles/search", () =>
-        HttpResponse.json(page([listing({ image_url: photo })]))
+        HttpResponse.json(page([listing({ image_url: photo, ...specs })]))
       ),
       http.put("*/api/vehicles/:id", async ({ request }) => {
         updated = await request.json();
@@ -249,6 +262,8 @@ describe("Edit vehicle", () => {
     expect(within(dialog).getByLabelText("Photo URL (optional)")).toHaveValue(
       photo
     );
+    expect(within(dialog).getByLabelText("Engine (cc)")).toHaveValue(1199);
+    expect(within(dialog).getByLabelText("Mileage (km/l)")).toHaveValue("17.4");
     server.use(
       http.get("*/api/vehicles/search", () =>
         HttpResponse.json(
@@ -273,7 +288,8 @@ describe("Edit vehicle", () => {
       model: "Nexon EV",
       category: "SUV",
       price: "1499999.50",
-      image_url: photo
+      image_url: photo,
+      ...specs
     });
     expect(screen.getByRole("status")).toHaveTextContent(
       "Updated Tata Nexon EV"
