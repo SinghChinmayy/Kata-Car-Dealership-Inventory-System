@@ -314,8 +314,8 @@ Four workflows move code and data from a developer's machine to production:
 | Workflow | Started by | Runs on | Produces |
 | --- | --- | --- | --- |
 | [Development](#development-workflow) | The developer, once per behaviour | The developer's machine | Red, green, and refactor commits on a branch |
-| [CI](#ci-workflow) | A pull request, a push to `main`, or a manual run | GitHub Actions | Four required checks; on `main`, a production migration |
-| [Deployment](#deployment-workflow) | A pull request or a push to `main` | Vercel's Git integration | A preview or production deployment |
+| [CI](#ci-workflow) | A pull request, a push to `main`, or a manual run | GitHub Actions | Four required checks; on `main`, a production migration and then a deployment |
+| [Deployment](#deployment-workflow) | A push to `main`, once its migration succeeds | GitHub Actions, building on Vercel | A production deployment |
 | [Database operations](#database-operations) | `make vercel-migrate` or `make reset-demo` | The developer's machine, linked to Vercel | A migrated database or a reset demo catalogue |
 
 The path of one change, from its first failing test to production:
@@ -326,13 +326,12 @@ flowchart TD
     tdd --> local["Local checks<br/>make lint, test-backend, test-frontend, e2e, report"]
     local --> pr["Push the branch and open a pull request"]
     pr --> ci_pr["CI on the pull request<br/>Lint, Backend tests, Frontend tests and build, End-to-end journey"]
-    pr --> preview["Vercel preview deployment"]
     ci_pr --> gate{"All four checks pass,<br/>branch up to date with main,<br/>every conversation resolved?"}
     gate -- "No: push a fix" --> tdd
     gate -- "Yes" --> merge["Rebase and merge into main"]
-    merge --> prod["Vercel production deployment"]
     merge --> ci_main["CI runs again on main"]
     ci_main --> migrate["Migrate production database<br/>alembic upgrade head on Neon"]
+    migrate --> prod["Deploy to Vercel production"]
 ```
 
 ### Development workflow
@@ -354,11 +353,11 @@ Before pushing, the same checks CI runs can be run locally:
 | `make test-frontend`, then `cd frontend && npm run build` | Frontend tests and build |
 | `make e2e` | End-to-end journey |
 
-Run `make requirements` whenever `backend/uv.lock` changes, since Vercel installs the API from `requirements.txt` and a backend test fails until the two match. A new migration must keep working with the code that is still live, because production deploys and migrates at the same time (see [Deployment workflow](#deployment-workflow)): add columns and tables first, and remove old ones in a later release.
+Run `make requirements` whenever `backend/uv.lock` changes, since Vercel installs the API from `requirements.txt` and a backend test fails until the two match. A new migration must keep working with the code that is still live, because the old code keeps serving until the deployment that follows the migration finishes (see [Deployment workflow](#deployment-workflow)): add columns and tables first, and remove old ones in a later release.
 
 ### CI workflow
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main`, and when started by hand. Lint and the two test jobs start at once; the end-to-end journey waits for both test jobs; the migration waits for all four and runs only on `main`.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main`, and when started by hand. Lint and the two test jobs start at once; the end-to-end journey waits for both test jobs; the migration waits for all four and runs only on `main`; the deployment waits for the migration.
 
 ```mermaid
 flowchart LR
@@ -371,6 +370,7 @@ flowchart LR
     backend --> migrate
     frontend --> migrate
     e2e --> migrate
+    migrate --> deploy["Deploy to Vercel<br/>main only"]
 ```
 
 | Job | Waits for | What it does |
@@ -380,40 +380,38 @@ flowchart LR
 | Frontend tests and build | Nothing | Runs Vitest, then `npm run build` (`tsc -b && vite build`), the same type-check and bundle Vercel runs, so a broken build fails here first. |
 | End-to-end journey | Backend tests, Frontend tests and build | Starts a PostgreSQL 16 service container on port 5432 with the same credentials as `make db-up`, installs Chromium, and runs `npm run e2e`. Playwright starts the API, which recreates its own `dealership_e2e` database, and the Vite server. If the journey fails, its report and traces are kept for 7 days as the `playwright-report` artifact. |
 | Migrate production database | All four | Runs only for a push to `main` or a manual run on `main`. It installs the backend without development dependencies and runs `alembic upgrade head`, then `alembic current`, against Neon's direct URL from the repository secret `DATABASE_URL_UNPOOLED`. It fails if that secret is missing. Because the settings refuse to load without `JWT_SECRET`, it generates a throwaway one; migrations sign no tokens. |
+| Deploy to Vercel | Migrate production database | Runs only on `main`, after the migration succeeds. It runs `vercel deploy --prod` with the Vercel CLI pinned to 65.2.0, using the `VERCEL_TOKEN` secret and the `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` repository variables, and fails if any is missing. Vercel builds the uploaded source remotely; `.vercelignore` keeps local secrets out. It reports to the `production` GitHub environment, which links the live URL. |
 
-- **Concurrency.** Runs are grouped by branch. A newer commit on a pull request cancels that pull request's older run, but runs on `main` are never cancelled, so a migration is never stopped halfway. The migration job also holds a `migrate-production` lock, so a second migration queues instead of running at the same time.
+- **Concurrency.** Runs are grouped by branch. A newer commit on a pull request cancels that pull request's older run, but runs on `main` are never cancelled, so a migration is never stopped halfway. The migration job holds a `migrate-production` lock and the deploy job a `deploy-production` lock, so a second migration or deployment queues instead of running at the same time.
 - **Every push migrates.** The migration runs on every push to `main`, not only when a migration file changes; when the database is already at head, `alembic upgrade head` changes nothing.
-- **Permissions.** The workflow token can only read the repository. `DATABASE_URL_UNPOOLED` is the only secret, and only the migration job uses it.
+- **Permissions.** The workflow token can only read the repository. The only secrets are `DATABASE_URL_UNPOOLED`, used only by the migration job, and `VERCEL_TOKEN`, used only by the deploy job.
 
 ### Deployment workflow
 
-The Vercel project is connected to this GitHub repository. Every pull request gets a preview deployment, and every push to `main` deploys to production. Each build runs `npm ci` and `npm run build` in `frontend/`, publishes `frontend/dist`, and packages `api/index.py` as a Python function with the dependencies in `requirements.txt` (see [Deployment](#deployment)).
+Production is deployed only by the CI workflow's last job. The Vercel project has no Git integration, so a push to `main` does nothing on Vercel by itself, and pull requests get no preview deployments. Each deployment runs `npm ci` and `npm run build` in `frontend/`, publishes `frontend/dist`, and packages `api/index.py` as a Python function with the dependencies in `requirements.txt` (see [Deployment](#deployment)).
 
-Vercel does not wait for CI. When a merge reaches `main`, the production deployment and the CI run, including its migration, run side by side:
+When a merge reaches `main`, the steps run in order, and each one waits for the last:
 
 ```mermaid
 sequenceDiagram
     participant Main as GitHub main
-    participant Vercel
     participant CI as GitHub Actions CI
     participant Neon as Neon Postgres
+    participant Vercel
 
-    Main->>Vercel: Push event
     Main->>CI: Push event
-    par Production deployment
-        Vercel->>Vercel: Build the SPA and the API function
-        Vercel->>Vercel: Promote the build to production
-    and CI and migration
-        CI->>CI: Lint, backend, frontend, and end-to-end jobs
-        CI->>Neon: alembic upgrade head over the direct URL
-    end
+    CI->>CI: Lint, backend, frontend, and end-to-end jobs
+    CI->>Neon: alembic upgrade head over the direct URL
+    CI->>Vercel: vercel deploy --prod
+    Vercel->>Vercel: Build the SPA and the API function
+    Vercel->>Vercel: Promote the build to production
 ```
 
 This has three consequences:
 
-- **Branch protection is the gate.** Because Vercel deploys whatever reaches `main`, the required checks below are what keep failing code out of production.
-- **Migrations must be backward compatible.** Either side can finish first, so for a short time new code may run against the old schema, or old code against the new one.
-- **Previews share the production database.** A pull request that adds a migration runs its preview against the old schema until it is merged, and anything done in a preview changes production data.
+- **Branch protection is the gate.** Only what reaches `main` is deployed, and the required checks below keep failing code from reaching it; a failed check or migration stops the deployment.
+- **New code never meets an old schema.** It is deployed only after its migration succeeds. The old code keeps serving while the migration runs, so migrations must stay backward compatible with it: add columns and tables first, and remove old ones in a later release.
+- **Setup.** The deploy job needs a Vercel access token in the `VERCEL_TOKEN` repository secret, and the team and project IDs (from `.vercel/project.json` after `vercel link`) in the `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` repository variables.
 
 ### Branch protection and how a change ships
 
@@ -429,13 +427,13 @@ This has three consequences:
 A change ships in four steps:
 
 1. Work on a branch, writing the failing test first.
-2. Push the branch and open a pull request. CI runs the four checks, and Vercel builds a preview deployment.
+2. Push the branch and open a pull request. CI runs the four checks.
 3. When all four checks pass and every conversation is resolved, rebase and merge.
-4. The merge pushes to `main`: Vercel deploys it to production, while CI runs again and, once its checks pass, applies any new migrations to Neon.
+4. The merge pushes to `main`: CI runs the checks again, applies any new migrations to Neon once they pass, and deploys to Vercel production once the migration succeeds.
 
 ### Database operations
 
-Migrations and seeds can also run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. Production and preview deployments currently share one database.
+Migrations and seeds can also run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. A deployment made by hand with `vercel deploy` uses the production database too.
 
 ## Test report
 
@@ -588,3 +586,5 @@ I also asked Claude Code to show the demo admin and buyer on the local sign-in p
 Next I asked Claude Code for photos on the vehicle cards. It added an optional `image_url` to listings test-first: a migration and the API field, full-replacement updates that clear it, and a check that only `http(s)` URLs are accepted, with an error message that never repeats the input. On the frontend it added the photo with a placeholder for missing or broken images, and a Photo URL field in the admin form. For the demo data it searched Wikimedia Commons and checked each candidate in the browser pane. When I said not to show or store credits, it pointed out that CC BY and CC BY-SA photos legally require them, so it switched every sample to a public-domain or CC0 photo instead and replaced the XUV700, which had none, with the XUV 3XO. It reverted the credits-link test with a new commit rather than rewriting history. I then asked for the photos to live in Vercel Blob storage. After I approved each step, it created the `car-photos` store, downloaded the eight photos, uploaded them, checked every copy by checksum, and pointed the seed at them, again test-first.
 
 After that I asked Claude Code for a popup with each car's details, in sections, with Purchase for buyers and the admin actions for administrators, all consistent with the rest of the UI. Since listings had no specs, it first asked me which details to add, how a card should open them, and where to build. It found that another session had checked out a different branch in my folder, so it built in a separate git worktree rather than switch branches under that session. Test-first, it added the spec sheet to the API (columns, full-replacement updates, validation, and a vocabulary endpoint), seeded realistic specs for the demo cars, and built the dialog and the form sections one behavior at a time, including a refactor that moved the photo into its own component. It noticed that the new full-replacement update would have wiped specs when editing through the old form, and covered that with a test. When one of its commits slipped through with a formatting error, it fixed it with a new commit and wrote a script that runs every check before each commit. It then checked the dialog for a buyer and an administrator in the browser pane and toned down an all-caps colour line that looked too loud.
+
+When I asked Claude Code to push the merged changes to Vercel, it checked the project's deployments and found that the Vercel project had never been connected to Git: production was still the manual deployment from hours earlier, while CI had been migrating the database. It waited for CI's migration job to finish, deployed `main` from a clean checkout without any `.env` files, and confirmed on the live site that the new code was serving. It recommended deploying from CI after the migration rather than connecting Vercel's Git integration, which would deploy in parallel and could briefly run new code against the old schema. At my request it added that deploy job, tested its missing-secret guard locally, and corrected the README, which still described the Git integration and preview deployments.
