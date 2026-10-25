@@ -18,11 +18,13 @@ import {
 import { RestockDialog } from "../components/RestockDialog";
 import { useToast } from "../components/Toast";
 import { VehicleCard, type AdminActions } from "../components/VehicleCard";
+import { VehicleDetailsDialog } from "../components/VehicleDetailsDialog";
 import { VehicleFormDialog } from "../components/VehicleFormDialog";
 import { primaryButton } from "../components/buttonStyles";
 import { useAuth } from "../auth/AuthContext";
 
 type Dialog =
+  | { kind: "details"; listing: VehicleListing }
   | { kind: "purchase"; listing: VehicleListing }
   | { kind: "add" }
   | { kind: "edit"; listing: VehicleListing }
@@ -158,6 +160,9 @@ export function DashboardPage() {
                 onPurchase={(selected) =>
                   setDialog({ kind: "purchase", listing: selected })
                 }
+                onOpenDetails={(selected) =>
+                  setDialog({ kind: "details", listing: selected })
+                }
                 admin={isAdmin ? adminActions : undefined}
               />
             ))}
@@ -172,6 +177,9 @@ export function DashboardPage() {
           />
         )}
       </main>
+      {dialog?.kind === "details" && (
+        <VehicleDetailsDialog listing={dialog.listing} onClose={closeDialog} />
+      )}
       {dialog?.kind === "purchase" && (
         <PurchaseDialog
           listing={dialog.listing}
