@@ -1432,3 +1432,22 @@ def test_spec_values_are_validated(
 
     assert response.status_code == 422
     assert list(response.json()["error"]["fields"]) == [field]
+
+
+def test_authenticated_user_reads_backend_owned_spec_options(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Like categories, the fuel and transmission vocabularies come from the protected API."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        anonymous = client.get("/api/vehicles/spec-options")
+        headers = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        response = client.get("/api/vehicles/spec-options", headers=headers)
+
+    assert anonymous.status_code == 401
+    assert response.status_code == 200
+    assert response.json() == {
+        "fuel_types": ["Petrol", "Diesel", "Electric", "Hybrid", "CNG"],
+        "transmissions": ["Manual", "Automatic"],
+    }
