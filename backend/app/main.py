@@ -29,7 +29,27 @@ from app.errors import DomainError
 
 logger = logging.getLogger("app")
 # Columns that make up VehicleListingOut, in every SELECT and RETURNING clause.
-LISTING_COLUMNS = "id, make, model, category, price, quantity, image_url, created_at, updated_at"
+# The optional spec sheet, in column order; every name is a column and an API field.
+SPEC_FIELDS = (
+    "year",
+    "colour",
+    "description",
+    "fuel_type",
+    "engine_cc",
+    "battery_kwh",
+    "power_bhp",
+    "transmission",
+    "seats",
+    "mileage_kmpl",
+    "range_km",
+)
+# Fixed SQL fragments for the spec columns and their bound parameters (never user input).
+SPEC_COLUMNS = ", ".join(SPEC_FIELDS)
+SPEC_PARAMETERS = ", ".join(f":{field}" for field in SPEC_FIELDS)
+LISTING_COLUMNS = ", ".join(
+    ("id", "make", "model", "category", "price", "quantity", "image_url", *SPEC_FIELDS)
+    + ("created_at", "updated_at")
+)
 # Stock Quantity is a PostgreSQL INTEGER; restocks may not push it past this.
 MAX_STOCK_QUANTITY = 2_147_483_647
 MAX_INITIAL_QUANTITY = 100_000
@@ -82,6 +102,18 @@ class VehicleCatalogueFields(BaseModel):
     price: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
     # Optional; a full update without it clears the photo.
     image_url: Optional[str] = Field(default=None, max_length=2048)
+    # The spec sheet (SPEC_FIELDS): all optional, so a full update without one clears it.
+    year: Optional[int] = None
+    colour: Optional[str] = None
+    description: Optional[str] = None
+    fuel_type: Optional[str] = None
+    engine_cc: Optional[int] = None
+    battery_kwh: Optional[Decimal] = None
+    power_bhp: Optional[int] = None
+    transmission: Optional[str] = None
+    seats: Optional[int] = None
+    mileage_kmpl: Optional[Decimal] = None
+    range_km: Optional[int] = None
 
     @field_validator("make", "model", mode="before")
     @classmethod
@@ -128,6 +160,17 @@ class VehicleListingOut(BaseModel):
     price: Decimal
     quantity: int
     image_url: Optional[str] = None
+    year: Optional[int] = None
+    colour: Optional[str] = None
+    description: Optional[str] = None
+    fuel_type: Optional[str] = None
+    engine_cc: Optional[int] = None
+    battery_kwh: Optional[Decimal] = None
+    power_bhp: Optional[int] = None
+    transmission: Optional[str] = None
+    seats: Optional[int] = None
+    mileage_kmpl: Optional[Decimal] = None
+    range_km: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -447,8 +490,9 @@ def create_app() -> FastAPI:
             session.execute(
                 text(
                     "INSERT INTO vehicle_listings "
-                    "(id, make, model, category, price, quantity, image_url) "
-                    "VALUES (:id, :make, :model, :category, :price, :quantity, :image_url) "
+                    f"(id, make, model, category, price, quantity, image_url, {SPEC_COLUMNS}) "
+                    "VALUES (:id, :make, :model, :category, :price, :quantity, :image_url, "
+                    f"{SPEC_PARAMETERS}) "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {
@@ -459,6 +503,7 @@ def create_app() -> FastAPI:
                     "price": payload.price,
                     "quantity": payload.quantity,
                     "image_url": payload.image_url,
+                    **payload.model_dump(include=set(SPEC_FIELDS)),
                 },
             )
             .mappings()
