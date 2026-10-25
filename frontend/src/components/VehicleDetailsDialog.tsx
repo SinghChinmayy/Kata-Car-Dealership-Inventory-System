@@ -3,18 +3,32 @@ import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
 import { Modal } from "./Modal";
 import { VehiclePhoto } from "./VehiclePhoto";
-import { secondaryButton } from "./buttonStyles";
+import { primaryButton } from "./buttonStyles";
 
-type Props = { listing: VehicleListing; onClose: () => void };
+type Props = {
+  listing: VehicleListing;
+  onClose: () => void;
+  /** Hands over to the usual purchase confirmation. */
+  onPurchase: (listing: VehicleListing) => void;
+};
 
 /** Everything known about one listing, opened from its card. */
-export function VehicleDetailsDialog({ listing, onClose }: Props) {
+export function VehicleDetailsDialog({ listing, onClose, onPurchase }: Props) {
   const inStock = listing.quantity > 0;
   const summary = [listing.category, listing.year, listing.colour]
     .filter((part) => part !== null)
     .join(" · ");
   return (
     <Modal title={`${listing.make} ${listing.model}`} onClose={onClose} wide>
+      {/* First in the dialog, so opening it focuses Close rather than an action. */}
+      <button
+        type="button"
+        aria-label="Close"
+        className={closeButton}
+        onClick={onClose}
+      >
+        <CloseIcon />
+      </button>
       <div className="mt-4 overflow-hidden rounded-lg">
         <VehiclePhoto key={listing.image_url} listing={listing} />
       </div>
@@ -65,9 +79,13 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
           ]}
         />
       </div>
-      <div className="mt-6 flex justify-end">
-        <button type="button" className={secondaryButton} onClick={onClose}>
-          Close
+      <div className="mt-6 flex justify-end border-t border-zinc-100 pt-4">
+        <button
+          type="button"
+          className={primaryButton}
+          onClick={() => onPurchase(listing)}
+        >
+          Purchase
         </button>
       </div>
     </Modal>
@@ -132,5 +150,25 @@ function SpecSection({
         ))}
       </dl>
     </Section>
+  );
+}
+
+const closeButton =
+  "absolute right-4 top-4 rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900";
+
+/** Decorative "×"; the button carries the accessible name. */
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+    >
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
   );
 }

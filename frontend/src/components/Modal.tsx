@@ -47,7 +47,7 @@ export function Modal({ title, onClose, children, wide = false }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`max-h-full w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl`}
+        className={`relative max-h-full w-full ${wide ? "max-w-2xl" : "max-w-lg"} overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-xl`}
       >
         <h2
           id={titleId}

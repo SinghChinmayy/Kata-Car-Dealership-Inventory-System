@@ -178,7 +178,13 @@ export function DashboardPage() {
         )}
       </main>
       {dialog?.kind === "details" && (
-        <VehicleDetailsDialog listing={dialog.listing} onClose={closeDialog} />
+        <VehicleDetailsDialog
+          listing={dialog.listing}
+          onClose={closeDialog}
+          onPurchase={(selected) =>
+            setDialog({ kind: "purchase", listing: selected })
+          }
+        />
       )}
       {dialog?.kind === "purchase" && (
         <PurchaseDialog
