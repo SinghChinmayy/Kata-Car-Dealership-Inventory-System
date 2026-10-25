@@ -17,10 +17,17 @@ print(sorted({route.path for route in module.app.routes}))
 
 def test_vercel_entry_file_serves_the_api_from_the_repository_root() -> None:
     """Vercel runs api/index.py with the repository root as the working directory."""
+    # Without pytest-cov's variables the child is not measured; from the root it would miss
+    # backend's branch-coverage setting, and its data could not be combined with ours.
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("COV_CORE_", "COVERAGE_"))
+    }
     result = subprocess.run(
         [sys.executable, "-c", LOAD_ENTRY],
         cwd=REPOSITORY_ROOT,
-        env={**os.environ, "PYTHONPATH": ""},
+        env={**env, "PYTHONPATH": ""},
         capture_output=True,
         text=True,
     )
