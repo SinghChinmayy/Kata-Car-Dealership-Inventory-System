@@ -67,13 +67,7 @@ const withUnit = (value: number | string | null, unit: string) =>
   value === null ? null : `${value} ${unit}`;
 
 /** A titled region of the dialog, announced by its heading. */
-function Section({
-  title,
-  children
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   const headingId = useId();
   return (
     <section
