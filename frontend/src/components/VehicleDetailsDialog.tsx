@@ -2,6 +2,7 @@ import { useId, type ReactNode } from "react";
 import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
 import { Modal } from "./Modal";
+import { VehiclePhoto } from "./VehiclePhoto";
 import { secondaryButton } from "./buttonStyles";
 
 type Props = { listing: VehicleListing; onClose: () => void };
@@ -14,7 +15,10 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
     .join(" · ");
   return (
     <Modal title={`${listing.make} ${listing.model}`} onClose={onClose} wide>
-      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+      <div className="mt-4 overflow-hidden rounded-lg">
+        <VehiclePhoto key={listing.image_url} listing={listing} />
+      </div>
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">
         {summary}
       </p>
       <p className="mt-4 text-2xl font-semibold tabular-nums tracking-tight text-zinc-900">
