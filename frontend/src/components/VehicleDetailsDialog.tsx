@@ -83,6 +83,7 @@ export function VehicleDetailsDialog({ listing, onClose, onPurchase }: Props) {
         <button
           type="button"
           className={primaryButton}
+          disabled={!inStock}
           onClick={() => onPurchase(listing)}
         >
           Purchase
