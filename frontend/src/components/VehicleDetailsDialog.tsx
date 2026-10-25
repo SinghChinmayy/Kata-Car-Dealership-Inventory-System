@@ -3,17 +3,25 @@ import type { VehicleListing } from "../api/types";
 import { formatPrice, formatStock } from "../format";
 import { Modal } from "./Modal";
 import { VehiclePhoto } from "./VehiclePhoto";
-import { primaryButton } from "./buttonStyles";
+import type { AdminActions } from "./VehicleCard";
+import { dangerTextButton, primaryButton, textButton } from "./buttonStyles";
 
 type Props = {
   listing: VehicleListing;
   onClose: () => void;
   /** Hands over to the usual purchase confirmation. */
   onPurchase: (listing: VehicleListing) => void;
+  /** Present only for administrators: the card's Edit, Restock and Delete. */
+  admin?: AdminActions;
 };
 
 /** Everything known about one listing, opened from its card. */
-export function VehicleDetailsDialog({ listing, onClose, onPurchase }: Props) {
+export function VehicleDetailsDialog({
+  listing,
+  onClose,
+  onPurchase,
+  admin
+}: Props) {
   const inStock = listing.quantity > 0;
   const summary = [listing.category, listing.year, listing.colour]
     .filter((part) => part !== null)
@@ -79,7 +87,33 @@ export function VehicleDetailsDialog({ listing, onClose, onPurchase }: Props) {
           ]}
         />
       </div>
-      <div className="mt-6 flex justify-end border-t border-zinc-100 pt-4">
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-x-4 gap-y-3 border-t border-zinc-100 pt-4">
+        {admin && (
+          // The card's admin row, in the same order and styles.
+          <div className="mr-auto flex items-center gap-4">
+            <button
+              type="button"
+              className={textButton}
+              onClick={() => admin.onEdit(listing)}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className={textButton}
+              onClick={() => admin.onRestock(listing)}
+            >
+              Restock
+            </button>
+            <button
+              type="button"
+              className={dangerTextButton}
+              onClick={() => admin.onDelete(listing)}
+            >
+              Delete
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className={primaryButton}

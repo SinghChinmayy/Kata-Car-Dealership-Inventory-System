@@ -184,6 +184,7 @@ export function DashboardPage() {
           onPurchase={(selected) =>
             setDialog({ kind: "purchase", listing: selected })
           }
+          admin={isAdmin ? adminActions : undefined}
         />
       )}
       {dialog?.kind === "purchase" && (
