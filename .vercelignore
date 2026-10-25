@@ -1,0 +1,24 @@
+# Never upload local secrets or machine-specific build output.
+.env
+.env.*
+!.env.example
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+backend/.coverage*
+backend/htmlcov
+backend/reports
+frontend/reports
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+
+# Not needed to build or run the app.
+.claude
+.agents
+design-samples
+docs
+plan
+frontend/e2e
