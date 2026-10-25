@@ -1289,3 +1289,25 @@ def test_a_listing_can_carry_an_optional_photo_url(
     assert with_photo.json().get("image_url") == PHOTO_URL
     assert without_photo.json().get("image_url") is None
     assert [item.get("image_url") for item in listed.json()["items"]] == [None, PHOTO_URL]
+
+
+def test_a_full_update_replaces_or_clears_the_photo_url(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """PUT is a full replacement: a new image_url replaces the photo; leaving it out clears it."""
+    use_test_database(postgres_url, monkeypatch)
+    other_photo = PHOTO_URL.replace("Car.jpg", "Other.jpg")
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": 1, "image_url": PHOTO_URL}
+        )
+        path = f"/api/vehicles/{created.json()['id']}"
+        replaced = client.put(path, headers=headers, json={**NEXON, "image_url": other_photo})
+        cleared = client.put(path, headers=headers, json=NEXON)
+
+    assert replaced.status_code == 200
+    assert replaced.json()["image_url"] == other_photo
+    assert cleared.status_code == 200
+    assert cleared.json()["image_url"] is None
