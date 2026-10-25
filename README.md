@@ -29,7 +29,7 @@ flowchart TB
     subgraph spa["React SPA, frontend/src"]
         direction TB
         pages["Pages<br/>LoginPage, RegisterPage, DashboardPage"]
-        components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog,<br/>PurchaseDialog, Modal"]
+        components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog,<br/>PurchaseDialog, VehicleDetailsDialog, VehiclePhoto, Modal"]
         guards["Routing and session<br/>App.tsx routes, GuestOnly, RequireSession, AuthProvider"]
         query["Server state<br/>TanStack Query cache, patchCachedListing"]
         client["API client<br/>useApi adds the token, apiRequest builds ApiError"]
@@ -57,7 +57,7 @@ flowchart TB
 
     subgraph db["PostgreSQL"]
         tables[("user_accounts, vehicle_listings,<br/>purchases, stock_adjustments")]
-        alembic["Alembic migrations 0001 to 0009"]
+        alembic["Alembic migrations 0001 to 0010"]
         alembic -.-> tables
     end
 
@@ -116,7 +116,7 @@ Tests never touch the development database. The backend suite starts its own Tes
 | `backend/app/core/` | Settings from the environment or `.env`, JSON logging with redaction, the request ID helper |
 | `backend/app/db/` | The SQLAlchemy engine and the per-request session |
 | `backend/app/scripts/` | The `seed_admin` and `seed_demo` commands |
-| `backend/alembic/versions/` | Migrations 0001 to 0009, the only way the schema changes |
+| `backend/alembic/versions/` | Migrations 0001 to 0010, the only way the schema changes |
 | `backend/tests/` | The pytest suite, run against a real PostgreSQL |
 | `api/index.py` | The Vercel entry point, which imports `app.main:app` from `backend/` |
 | `frontend/src/` | The SPA: `api/` (fetch client, query client, cache helpers), `auth/` (session and route guards), `pages/`, and `components/` |
@@ -139,8 +139,9 @@ Tests never touch the development database. The backend suite starts its own Tes
 | `GET /api/vehicles` | Signed in | Lists active listings, newest first, one page at a time |
 | `GET /api/vehicles/search` | Signed in | Filters listings; `q` is the typo-tolerant make and model search |
 | `GET /api/vehicles/categories` | Signed in | Returns the controlled category list |
+| `GET /api/vehicles/spec-options` | Signed in | Returns the controlled fuel type and transmission lists |
 | `POST /api/vehicles` | Administrator | Creates a listing |
-| `PUT /api/vehicles/{id}` | Administrator | Replaces a listing's make, model, category, and price |
+| `PUT /api/vehicles/{id}` | Administrator | Replaces a listing's catalogue fields: make, model, category, price, photo, and spec sheet |
 | `DELETE /api/vehicles/{id}` | Administrator | Soft-deletes a listing |
 | `POST /api/vehicles/{id}/purchase` | Signed in | Buys one unit |
 | `POST /api/vehicles/{id}/restock` | Administrator | Adds units and records a Stock Adjustment |
@@ -182,6 +183,17 @@ erDiagram
         numeric price
         int quantity
         string image_url
+        smallint year
+        string colour
+        string description
+        string fuel_type
+        int engine_cc
+        numeric battery_kwh
+        smallint power_bhp
+        string transmission
+        smallint seats
+        numeric mileage_kmpl
+        smallint range_km
         timestamptz created_at
         timestamptz updated_at
         timestamptz deleted_at
@@ -209,7 +221,7 @@ erDiagram
 - Every primary key is a UUID (ADR 0013), and every foreign key is `ON DELETE RESTRICT`, so no account or listing with history can be removed.
 - Listings are never hard-deleted. `deleted_at` and `deleted_by` are set together, and every query for active listings filters on `deleted_at IS NULL`.
 - A purchase copies the listing's price, make, model, and category at the time of sale, so later edits never change what was sold.
-- Prices are `NUMERIC(14, 2)` in INR (ADR 0010). Migration 0008 enables `pg_trgm` for the fuzzy search, and 0009 adds the optional `image_url` photo column.
+- Prices are `NUMERIC(14, 2)` in INR (ADR 0010). Migration 0008 enables `pg_trgm` for the fuzzy search, 0009 adds the optional `image_url` photo column, and 0010 the optional spec sheet columns with database checks as a backstop.
 
 ### How the SPA works
 
@@ -457,6 +469,8 @@ Listings are not required to be unique by make, model, category, or price. The s
 
 A listing may carry one optional photo, `image_url`, added by migration 0009. It must be an absolute `http` or `https` URL of at most 2,048 characters and is stored exactly as given; anything else is a `422` on `image_url` with a fixed message that never repeats the input. The demo samples' photos are public-domain or CC0 files from Wikimedia Commons, which need no attribution. They were downloaded once and uploaded to the project's public Vercel Blob store, `car-photos`, as `cars/<make-model>.jpg`, so the demo does not depend on Wikimedia; no image files are kept in this repository. To add another, upload it with `vercel blob put <file> --access public --pathname cars/<name>.jpg` and use the URL it prints. Commons had no free photo of the Mahindra XUV700, so that sample is the XUV 3XO.
 
+A listing may also carry an optional spec sheet, added by migration 0010: `year`, `colour`, `description`, `fuel_type`, `engine_cc`, `battery_kwh`, `power_bhp`, `transmission`, `seats`, `mileage_kmpl`, and `range_km`. Every field may be null. A given value must make sense: the year runs from 1900 to next year; fuel type is Petrol, Diesel, Electric, Hybrid, or CNG and transmission is Manual or Automatic, both backend-owned vocabularies served by `GET /api/vehicles/spec-options`, as categories are (ADR 0006); engine size, battery, power, seats, mileage, and range are positive and within realistic limits, with battery and mileage to one decimal place; colour and description are limited to 50 and 1,000 characters. Each bad value is a field-level `422`, and database checks back the rules up. Electric cars use `battery_kwh` and `range_km` where combustion cars use `engine_cc` and `mileage_kmpl`. The demo samples carry a full spec sheet.
+
 A new listing starts with between 0 and 100,000 units. The cap catches typing mistakes such as an extra zero. Restock can still raise stock up to the database's integer limit.
 
 Vehicle search (`GET /api/vehicles/search`) applies every supplied filter together (AND). Its open choices were resolved as follows:
@@ -473,7 +487,7 @@ Vehicle search (`GET /api/vehicles/search`) applies every supplied filter togeth
 Vehicle update (`PUT /api/vehicles/{id}`) resolves its open choices as follows:
 
 - Only Administrators may update listings. The kata marks only delete and restock as admin-only, but its frontend section places update in the admin UI and the domain gives Standard Users no inventory-management authority, so a Standard User receives `403`.
-- The request is a full replacement: `make`, `model`, `category`, and `price` are all required and follow the same rules as creation. `image_url` is optional, so an update without it clears the photo.
+- The request is a full replacement: `make`, `model`, `category`, and `price` are all required and follow the same rules as creation. `image_url` and every spec field are optional, so an update without them clears them; the SPA's edit form always sends them back.
 - `quantity` and any other unknown field return `422`; stock changes only through audited purchase and restock operations.
 - An unknown listing ID returns `404`; a malformed ID returns `422` for the `listing_id` field.
 - Success returns `200` with the updated listing. `updated_at` is refreshed on every update while `id`, `created_at`, and quantity are unchanged, so newest-first ordering is unaffected by edits.
@@ -511,7 +525,8 @@ The single-page app resolves the frontend's open choices as follows:
 - The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
 - The dashboard always uses the search endpoint and searches as you type. Text and price changes apply after a 300 ms pause, while a category choice, Enter, or Clear applies immediately. The applied filters and page number live in the URL, so back and forward restore them. Categories come from the API. Server validation errors appear beside the matching input.
 - Each vehicle card shows the listing's photo across the top, cropped to 16:10 and lazy-loaded, or a "No photo available" placeholder of the same shape when it has none or the photo fails to load. Below it are the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase opens a confirmation dialog that names the vehicle and its price; Cancel comes first and has focus, as in the delete dialog, and only "Confirm purchase" sends the request. The button is disabled at zero stock and while a purchase is in flight. A sold-out conflict closes the dialog, is announced, and refreshes the results.
-- Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, the add and edit form has an optional Photo URL field (blank means no photo), and the delete confirmation focuses Cancel first.
+- Clicking a card's photo or name opens its details dialog. The name is a button, so keyboard and screen reader users reach it; the photo is an extra mouse target. The dialog shows the photo, the category, year and colour, the price and stock, then the spec sheet in titled sections: Overview (the description), Engine & performance (fuel, engine or battery, power, transmission), and Practicality (seats, mileage or range). Rows without a value are left out, and a listing with no specs says "No specifications yet." Close sits first, in the corner, so it takes focus. Purchase hands over to the usual confirmation and is disabled when sold out, and administrators also get the card's Edit, Restock, and Delete in the same order and styles.
+- Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, the add and edit form has an optional Photo URL field (blank means no photo) and the spec sheet in the same three sections, with fuel type and transmission as dropdowns fed by `/api/vehicles/spec-options`, and the delete confirmation focuses Cancel first.
 - The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
 - Dialogs focus their first control, keep Tab and Shift+Tab inside themselves, close on Escape, and return focus to the control that opened them. If that control has left the page, for example the card of a listing that was just deleted, focus is not moved.
 - Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. One Playwright journey exercises the real stack end to end.
@@ -571,3 +586,5 @@ To boost the project, I asked Claude Code to take the two quick wins from its ra
 I also asked Claude Code to show the demo admin and buyer on the local sign-in page, as the Vercel deployment does. It found that the page only lists logins from `VITE_DEMO_*`, which only Vercel set, and that my local `.env` had no demo admin and an old buyer whose password no longer matched the database. It made the Vite dev server copy `DEMO_*` from the root `.env` into `VITE_DEMO_*`, so the seed and the sign-in page read one set of values, and left tests and production builds unchanged. It switched my local `.env` to the published Vercel demo logins after backing it up, ran `make seed-demo`, and signed in with both demo buttons in the browser pane to confirm.
 
 Next I asked Claude Code for photos on the vehicle cards. It added an optional `image_url` to listings test-first: a migration and the API field, full-replacement updates that clear it, and a check that only `http(s)` URLs are accepted, with an error message that never repeats the input. On the frontend it added the photo with a placeholder for missing or broken images, and a Photo URL field in the admin form. For the demo data it searched Wikimedia Commons and checked each candidate in the browser pane. When I said not to show or store credits, it pointed out that CC BY and CC BY-SA photos legally require them, so it switched every sample to a public-domain or CC0 photo instead and replaced the XUV700, which had none, with the XUV 3XO. It reverted the credits-link test with a new commit rather than rewriting history. I then asked for the photos to live in Vercel Blob storage. After I approved each step, it created the `car-photos` store, downloaded the eight photos, uploaded them, checked every copy by checksum, and pointed the seed at them, again test-first.
+
+After that I asked Claude Code for a popup with each car's details, in sections, with Purchase for buyers and the admin actions for administrators, all consistent with the rest of the UI. Since listings had no specs, it first asked me which details to add, how a card should open them, and where to build. It found that another session had checked out a different branch in my folder, so it built in a separate git worktree rather than switch branches under that session. Test-first, it added the spec sheet to the API (columns, full-replacement updates, validation, and a vocabulary endpoint), seeded realistic specs for the demo cars, and built the dialog and the form sections one behavior at a time, including a refactor that moved the photo into its own component. It noticed that the new full-replacement update would have wiped specs when editing through the old form, and covered that with a test. When one of its commits slipped through with a formatting error, it fixed it with a new commit and wrote a script that runs every check before each commit. It then checked the dialog for a buyer and an administrator in the browser pane and toned down an all-caps colour line that looked too loud.
