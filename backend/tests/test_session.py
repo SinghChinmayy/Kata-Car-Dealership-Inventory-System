@@ -29,3 +29,10 @@ def test_db_pool_size_sets_connections_kept_per_instance(
         monkeypatch.setenv("DB_POOL_SIZE", configured)
 
     assert get_engine().pool.size() == expected
+
+
+def test_connections_never_prepare_statements(fresh_engine: None) -> None:
+    """Behind a transaction pooler (Neon on Vercel) a prepared statement can land on a
+    different server connection than the one that prepared it, so none are made."""
+    with get_engine().connect() as connection:
+        assert connection.connection.driver_connection.prepare_threshold is None
