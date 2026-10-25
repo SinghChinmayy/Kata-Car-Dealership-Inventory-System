@@ -40,7 +40,18 @@ describe("Add vehicle", () => {
       category: "SUV",
       price: "1250000",
       quantity: 3,
-      image_url: null
+      image_url: null,
+      year: null,
+      colour: null,
+      description: null,
+      fuel_type: null,
+      engine_cc: null,
+      battery_kwh: null,
+      power_bhp: null,
+      transmission: null,
+      seats: null,
+      mileage_kmpl: null,
+      range_km: null
     });
     expect(screen.getByRole("status")).toHaveTextContent("Added Tata Nexon");
     expect(
@@ -102,6 +113,58 @@ describe("Add vehicle", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("Vehicle specs in the form", () => {
+  it("sends the spec sheet with a new listing", async () => {
+    let created: Record<string, unknown> = {};
+    server.use(
+      http.post("*/api/vehicles", async ({ request }) => {
+        created = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(listing(), { status: 201 });
+      })
+    );
+    const { user } = await renderSignedIn(administrator);
+    await user.click(screen.getByRole("button", { name: "Add vehicle" }));
+    const dialog = screen.getByRole("dialog", { name: "Add vehicle" });
+    const field = (label: string) => within(dialog).getByLabelText(label);
+
+    await user.type(field("Make"), "Tata");
+    await user.type(field("Model"), "Nexon");
+    await user.selectOptions(field("Category"), "SUV");
+    await user.type(field("Price (₹)"), "1250000");
+    await user.type(field("Quantity"), "3");
+    await user.type(field("Year"), "2024");
+    await user.type(field("Colour"), " Pure Grey ");
+    await user.type(field("Description"), "Compact SUV.");
+    await user.selectOptions(
+      await within(dialog).findByLabelText("Fuel type"),
+      "Petrol"
+    );
+    await user.type(field("Engine (cc)"), "1199");
+    await user.type(field("Power (bhp)"), "118");
+    await user.selectOptions(field("Transmission"), "Manual");
+    await user.type(field("Seats"), "5");
+    await user.type(field("Mileage (km/l)"), "17.4");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    );
+    expect(created).toMatchObject({
+      year: 2024,
+      colour: "Pure Grey",
+      description: "Compact SUV.",
+      fuel_type: "Petrol",
+      engine_cc: 1199,
+      battery_kwh: null,
+      power_bhp: 118,
+      transmission: "Manual",
+      seats: 5,
+      mileage_kmpl: "17.4",
+      range_km: null
+    });
   });
 });
 

@@ -13,6 +13,11 @@ export const categories = [
   "Van"
 ];
 
+export const specOptions = {
+  fuel_types: ["Petrol", "Diesel", "Electric", "Hybrid", "CNG"],
+  transmissions: ["Manual", "Automatic"]
+};
+
 /**
  * Shared MSW server. The defaults answer the dashboard's background reads so tests only
  * register the handlers their behavior is about; resetHandlers() restores these.
@@ -21,5 +26,6 @@ export const server = setupServer(
   http.get("*/api/vehicles/search", () => HttpResponse.json(emptyPage)),
   http.get("*/api/vehicles/categories", () =>
     HttpResponse.json({ items: categories })
-  )
+  ),
+  http.get("*/api/vehicles/spec-options", () => HttpResponse.json(specOptions))
 );
