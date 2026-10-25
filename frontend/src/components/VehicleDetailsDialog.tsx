@@ -30,6 +30,11 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
         {formatStock(listing.quantity)}
       </p>
       <div className="mt-6 space-y-5">
+        {!SECTION_FIELDS.some((field) => listing[field] !== null) && (
+          <p className="border-t border-zinc-100 pt-4 text-sm text-zinc-500">
+            No specifications yet.
+          </p>
+        )}
         {listing.description && (
           <Section title="Overview">
             <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -64,6 +69,19 @@ export function VehicleDetailsDialog({ listing, onClose }: Props) {
     </Modal>
   );
 }
+
+/** The fields the sections below show; year and colour sit in the summary line. */
+const SECTION_FIELDS = [
+  "description",
+  "fuel_type",
+  "engine_cc",
+  "battery_kwh",
+  "power_bhp",
+  "transmission",
+  "seats",
+  "mileage_kmpl",
+  "range_km"
+] as const satisfies readonly (keyof VehicleListing)[];
 
 const withUnit = (value: number | string | null, unit: string) =>
   value === null ? null : `${value} ${unit}`;
