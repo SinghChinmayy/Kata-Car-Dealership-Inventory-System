@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { AuthLayout } from "../components/AuthLayout";
+import { DemoAccounts } from "../components/DemoAccounts";
 import { FormAlert } from "../components/FormAlert";
 import { TextField } from "../components/TextField";
 import { primaryButton, textLink } from "../components/buttonStyles";
@@ -57,6 +58,12 @@ export function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      <DemoAccounts
+        onUse={(demoEmail, demoPassword) => {
+          setEmail(demoEmail);
+          setPassword(demoPassword);
+        }}
+      />
       <p className="mt-6 text-center text-sm text-zinc-500">
         New here?{" "}
         <Link to="/register" className={textLink}>
