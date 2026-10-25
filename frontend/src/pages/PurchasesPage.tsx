@@ -1,16 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { PurchasePage } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
+import { Pagination } from "../components/Pagination";
 import { textLink } from "../components/buttonStyles";
 import { formatDateTime, formatPrice } from "../format";
 
 export function PurchasesPage() {
   const api = useApi();
+  // The page number lives in the URL, as on the dashboard, so back and forward keep it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = searchParams.get("page") ?? undefined;
   const purchases = useQuery({
-    queryKey: ["purchases", "me"],
-    queryFn: () => api<PurchasePage>("/api/purchases/me")
+    queryKey: ["purchases", "me", page],
+    queryFn: () => api<PurchasePage>("/api/purchases/me", { query: { page } })
   });
 
   return (
@@ -69,6 +73,14 @@ export function PurchasesPage() {
               </li>
             ))}
           </ul>
+        )}
+        {purchases.data && (
+          <Pagination
+            page={purchases.data.page}
+            pageSize={purchases.data.page_size}
+            total={purchases.data.total}
+            onPageChange={(next) => setSearchParams({ page: String(next) })}
+          />
         )}
       </main>
     </div>
