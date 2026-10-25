@@ -1396,3 +1396,39 @@ def test_a_full_update_replaces_or_clears_the_spec_sheet(
     assert {field: replaced.json()[field] for field in SPECS} == electric
     assert cleared.status_code == 200
     assert all(cleared.json()[field] is None for field in SPECS)
+
+
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"year": 1899}, "year"),
+        ({"year": datetime.now(timezone.utc).year + 2}, "year"),
+        ({"colour": "c" * 51}, "colour"),
+        ({"description": "d" * 1001}, "description"),
+        ({"fuel_type": "Steam"}, "fuel_type"),
+        ({"engine_cc": 0}, "engine_cc"),
+        ({"battery_kwh": "0.0"}, "battery_kwh"),
+        ({"battery_kwh": "40.25"}, "battery_kwh"),
+        ({"power_bhp": 0}, "power_bhp"),
+        ({"transmission": "Sideways"}, "transmission"),
+        ({"seats": 0}, "seats"),
+        ({"seats": 21}, "seats"),
+        ({"mileage_kmpl": "-1"}, "mileage_kmpl"),
+        ({"mileage_kmpl": "17.45"}, "mileage_kmpl"),
+        ({"range_km": 0}, "range_km"),
+    ],
+)
+def test_spec_values_are_validated(
+    postgres_url: str, postgres_engine, monkeypatch, changes: dict[str, object], field: str
+) -> None:
+    """Each spec is optional, but a value that is given must make sense for a car."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": 1, **changes}
+        )
+
+    assert response.status_code == 422
+    assert list(response.json()["error"]["fields"]) == [field]
