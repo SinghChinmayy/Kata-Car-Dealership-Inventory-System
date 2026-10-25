@@ -908,6 +908,40 @@ def test_concurrent_purchases_never_oversell(
         assert connection.execute(text("SELECT COUNT(*) FROM purchases")).scalar_one() == 5
 
 
+CITY = {"make": "Honda", "model": "City", "category": "Sedan", "price": "1150000.00"}
+
+
+def test_my_purchases_lists_the_callers_purchases_newest_first(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Each account sees only what it bought, newest first, at the price it paid."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        buyer = login_headers(client, postgres_engine, "buyer@example.com", administrator=False)
+        nexon = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 3}).json()
+        city = client.post("/api/vehicles", headers=admin, json={**CITY, "quantity": 3}).json()
+        client.post(f"/api/vehicles/{nexon['id']}/purchase", headers=buyer)
+        client.post(f"/api/vehicles/{city['id']}/purchase", headers=buyer)
+        client.post(f"/api/vehicles/{nexon['id']}/purchase", headers=admin)
+        client.put(
+            f"/api/vehicles/{nexon['id']}", headers=admin, json={**NEXON, "price": "1600000.00"}
+        )
+        response = client.get("/api/purchases/me", headers=buyer)
+        anonymous_response = client.get("/api/purchases/me")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [(item["make"], item["model"], item["category"], item["price"]) for item in items] == [
+        ("Honda", "City", "Sedan", "1150000.00"),
+        ("Tata", "Nexon", "SUV", "1250000.00"),
+    ]
+    assert [item["listing_id"] for item in items] == [city["id"], nexon["id"]]
+    assert all(item["id"] and item["purchased_at"] for item in items)
+    assert anonymous_response.status_code == 401
+
+
 def test_administrator_restock_adds_units_and_returns_the_updated_listing(
     postgres_url: str, postgres_engine, monkeypatch
 ) -> None:
