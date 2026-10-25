@@ -52,7 +52,7 @@ Project environment variables (production and preview):
 | `DB_POOL_SIZE` | `1`, because every function instance keeps its own pool. Prepared statements are always disabled, so queries are safe behind Neon's pooler. |
 | `VITE_DEMO_*` | The published demo logins shown on the sign-in page. |
 
-Migrations and seeds run from a laptop against Neon's direct URL, never during the Vercel build: `alembic upgrade head`, then `python -m app.scripts.seed_demo`, with `DATABASE_URL` set to `DATABASE_URL_UNPOOLED` and the `DEMO_*` variables set. The demo administrator is public, so anyone can edit or delete listings; rerun the demo seed to reset the catalogue. Production and preview deployments currently share one database.
+Migrations and seeds run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. Production and preview deployments currently share one database.
 
 ## Test report
 

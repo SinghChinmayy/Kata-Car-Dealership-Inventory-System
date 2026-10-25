@@ -1,4 +1,4 @@
-.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint report requirements
+.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint report requirements vercel-migrate reset-demo
 
 db-up:
 	docker compose up -d postgres
@@ -38,3 +38,11 @@ report:
 # Vercel installs the API from this file; regenerate it whenever backend/uv.lock changes.
 requirements:
 	uv export --project backend --frozen --no-dev --no-hashes --no-annotate --format requirements-txt -o requirements.txt
+
+# Deployed Neon database (needs vercel link); see scripts/vercel_db.sh.
+vercel-migrate:
+	scripts/vercel_db.sh uv run alembic upgrade head
+
+# Puts the public demo back: keeps the demo logins, resets the catalogue to the samples.
+reset-demo:
+	scripts/vercel_db.sh uv run python -m app.scripts.seed_demo
