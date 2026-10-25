@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import text
 
 DEMO_ADMIN_EMAIL = "Demo.Admin@Example.com"
@@ -61,3 +62,27 @@ def test_seed_demo_is_safe_to_run_again(postgres_url: str, postgres_engine, monk
     main()
 
     assert accounts(postgres_engine) == before
+
+
+def test_seed_demo_refuses_an_email_registered_with_another_role(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """If a stranger registered the demo admin email first, the seed stops rather than
+    publishing a login that someone else controls."""
+    configure(monkeypatch, postgres_url)
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.scripts.seed_demo import main
+
+    with TestClient(create_app()) as client:
+        client.post(
+            "/api/auth/register",
+            json={"email": "demo.admin@example.com", "password": "squatter-password"},
+        )
+
+    with pytest.raises(SystemExit) as exited:
+        main()
+
+    assert "demo.admin@example.com" in str(exited.value)
+    assert accounts(postgres_engine)["demo.admin@example.com"]["role"] == "standard_user"
