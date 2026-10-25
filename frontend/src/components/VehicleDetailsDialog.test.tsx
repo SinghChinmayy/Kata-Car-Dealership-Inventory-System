@@ -111,4 +111,11 @@ describe("Vehicle details", () => {
       specs(within(dialog).getByRole("region", { name: "Practicality" }))
     ).toEqual({ Seats: "5", Range: "489 km" });
   });
+
+  it("says so when a listing has no specs yet", async () => {
+    const { dialog } = await openDetails();
+
+    expect(dialog).toHaveTextContent("No specifications yet.");
+    expect(within(dialog).queryByRole("region")).not.toBeInTheDocument();
+  });
 });
