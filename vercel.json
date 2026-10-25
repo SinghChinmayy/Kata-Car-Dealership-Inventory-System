@@ -4,6 +4,7 @@
   "installCommand": "cd frontend && npm ci",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
+  "regions": ["sin1"],
   "functions": {
     "api/index.py": {
       "excludeFiles": "{.*,.*/**,backend/.*,backend/.*/**,backend/tests/**,backend/reports/**,backend/htmlcov/**,frontend/**,docs/**,plan/**,scripts/**,design-samples/**,**/*.md,Makefile,docker-compose.yml,**/__pycache__/**}"
