@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Literal, Optional
@@ -94,6 +94,19 @@ class VehicleCategory(str, Enum):
     van = "Van"
 
 
+class FuelType(str, Enum):
+    petrol = "Petrol"
+    diesel = "Diesel"
+    electric = "Electric"
+    hybrid = "Hybrid"
+    cng = "CNG"
+
+
+class Transmission(str, Enum):
+    manual = "Manual"
+    automatic = "Automatic"
+
+
 class VehicleCatalogueFields(BaseModel):
     """Descriptive listing fields shared by creation and full replacement."""
 
@@ -104,17 +117,29 @@ class VehicleCatalogueFields(BaseModel):
     # Optional; a full update without it clears the photo.
     image_url: Optional[str] = Field(default=None, max_length=2048)
     # The spec sheet (SPEC_FIELDS): all optional, so a full update without one clears it.
-    year: Optional[int] = None
-    colour: Optional[str] = None
-    description: Optional[str] = None
-    fuel_type: Optional[str] = None
-    engine_cc: Optional[int] = None
-    battery_kwh: Optional[Decimal] = None
-    power_bhp: Optional[int] = None
-    transmission: Optional[str] = None
-    seats: Optional[int] = None
-    mileage_kmpl: Optional[Decimal] = None
-    range_km: Optional[int] = None
+    year: Optional[int] = Field(default=None, ge=1900)
+    colour: Optional[str] = Field(default=None, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=1000)
+    fuel_type: Optional[FuelType] = None
+    engine_cc: Optional[int] = Field(default=None, ge=1, le=10_000)
+    battery_kwh: Optional[Decimal] = Field(
+        default=None, gt=Decimal("0"), le=Decimal("500"), decimal_places=1
+    )
+    power_bhp: Optional[int] = Field(default=None, ge=1, le=2_000)
+    transmission: Optional[Transmission] = None
+    seats: Optional[int] = Field(default=None, ge=1, le=20)
+    mileage_kmpl: Optional[Decimal] = Field(
+        default=None, gt=Decimal("0"), le=Decimal("100"), decimal_places=1
+    )
+    range_km: Optional[int] = Field(default=None, ge=1, le=2_000)
+
+    @field_validator("year")
+    @classmethod
+    def no_later_than_next_year(cls, value: Optional[int]) -> Optional[int]:
+        """Next year's models go on sale early; anything later is a typo."""
+        if value is not None and value > date.today().year + 1:
+            raise PydanticCustomError("year", "Must not be later than next year.")
+        return value
 
     @field_validator("make", "model", mode="before")
     @classmethod
@@ -185,6 +210,14 @@ class VehicleListingPageOut(BaseModel):
 
 class VehicleCategoriesOut(BaseModel):
     items: list[str]
+
+
+def spec_values(payload: VehicleCatalogueFields) -> dict[str, Any]:
+    """The spec sheet as statement parameters, with vocabulary members as their text."""
+    return {
+        field: value.value if isinstance(value, Enum) else value
+        for field, value in payload.model_dump(include=set(SPEC_FIELDS)).items()
+    }
 
 
 def listing_not_found() -> DomainError:
@@ -504,7 +537,7 @@ def create_app() -> FastAPI:
                     "price": payload.price,
                     "quantity": payload.quantity,
                     "image_url": payload.image_url,
-                    **payload.model_dump(include=set(SPEC_FIELDS)),
+                    **spec_values(payload),
                 },
             )
             .mappings()
@@ -618,7 +651,7 @@ def create_app() -> FastAPI:
                     "category": payload.category.value,
                     "price": payload.price,
                     "image_url": payload.image_url,
-                    **payload.model_dump(include=set(SPEC_FIELDS)),
+                    **spec_values(payload),
                 },
             )
             .mappings()
