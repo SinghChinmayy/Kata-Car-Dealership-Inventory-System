@@ -64,7 +64,8 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
     "model",
     "category",
     "price",
-    "quantity"
+    "quantity",
+    "image_url"
   ]);
 
   function handleSubmit(event: FormEvent) {
@@ -128,6 +129,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
           inputMode="url"
           placeholder="https://…"
           value={form.image_url}
+          error={errors.image_url}
           onChange={(event) => set("image_url")(event.target.value)}
         />
         <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
