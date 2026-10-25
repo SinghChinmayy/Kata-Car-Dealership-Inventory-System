@@ -56,6 +56,8 @@ MAX_STOCK_QUANTITY = 2_147_483_647
 MAX_INITIAL_QUANTITY = 100_000
 # Deep enough for any real catalogue, small enough that OFFSET can never overflow.
 MAX_PAGE = 10_000
+# Larger page_size requests are served this many rows, so one call can't load everything.
+MAX_PAGE_SIZE = 100
 # pg_trgm word_similarity cut-off: one wrong or missing letter in a short word still matches.
 FUZZY_MATCH_THRESHOLD = 0.5
 password_hasher = PasswordHash.recommended()
@@ -280,7 +282,7 @@ def fetch_listing_page(
     input only ever reaches the query through bound parameters. rank_first_by, when
     given, orders ahead of recency (e.g. search relevance).
     """
-    effective_page_size = min(page_size, 100)
+    effective_page_size = min(page_size, MAX_PAGE_SIZE)
     # Retired listings stay in the table for auditing but never appear in normal reads.
     where = f"WHERE {' AND '.join(['deleted_at IS NULL', *conditions])} "
     total = session.execute(
@@ -820,7 +822,7 @@ def create_app() -> FastAPI:
         page_size: int = Query(default=20, ge=1),
     ) -> PurchasePageOut:
         """Return the signed-in account's purchases, newest first, one page at a time."""
-        effective_page_size = min(page_size, 100)
+        effective_page_size = min(page_size, MAX_PAGE_SIZE)
         params = {"purchaser_id": purchaser.id}
         total = session.execute(
             text("SELECT COUNT(*) FROM purchases WHERE purchaser_id = :purchaser_id"), params
