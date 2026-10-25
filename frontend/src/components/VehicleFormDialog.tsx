@@ -74,7 +74,8 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
     "category",
     "price",
     "quantity",
-    "image_url"
+    "image_url",
+    ...SPEC_FIELDS
   ]);
 
   function handleSubmit(event: FormEvent) {
@@ -152,11 +153,13 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             min={1900}
             step={1}
             value={form.year}
+            error={errors.year}
             onChange={(event) => set("year")(event.target.value)}
           />
           <TextField
             label="Colour"
             value={form.colour}
+            error={errors.colour}
             onChange={(event) => set("colour")(event.target.value)}
           />
           <TextAreaField
@@ -165,6 +168,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             rows={3}
             maxLength={1000}
             value={form.description}
+            error={errors.description}
             onChange={(event) => set("description")(event.target.value)}
           />
         </FormSection>
@@ -174,6 +178,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             placeholder="Not specified"
             options={specOptions.data?.fuel_types ?? []}
             value={form.fuel_type}
+            error={errors.fuel_type}
             onChange={(event) => set("fuel_type")(event.target.value)}
           />
           <SelectField
@@ -181,6 +186,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             placeholder="Not specified"
             options={specOptions.data?.transmissions ?? []}
             value={form.transmission}
+            error={errors.transmission}
             onChange={(event) => set("transmission")(event.target.value)}
           />
           <TextField
@@ -189,12 +195,14 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             min={1}
             step={1}
             value={form.engine_cc}
+            error={errors.engine_cc}
             onChange={(event) => set("engine_cc")(event.target.value)}
           />
           <TextField
             label="Battery (kWh)"
             inputMode="decimal"
             value={form.battery_kwh}
+            error={errors.battery_kwh}
             onChange={(event) => set("battery_kwh")(event.target.value)}
           />
           <TextField
@@ -203,6 +211,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             min={1}
             step={1}
             value={form.power_bhp}
+            error={errors.power_bhp}
             onChange={(event) => set("power_bhp")(event.target.value)}
           />
         </FormSection>
@@ -213,12 +222,14 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             min={1}
             step={1}
             value={form.seats}
+            error={errors.seats}
             onChange={(event) => set("seats")(event.target.value)}
           />
           <TextField
             label="Mileage (km/l)"
             inputMode="decimal"
             value={form.mileage_kmpl}
+            error={errors.mileage_kmpl}
             onChange={(event) => set("mileage_kmpl")(event.target.value)}
           />
           <TextField
@@ -227,6 +238,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
             min={1}
             step={1}
             value={form.range_km}
+            error={errors.range_km}
             onChange={(event) => set("range_km")(event.target.value)}
           />
         </FormSection>
@@ -249,20 +261,21 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
 
 type SpecOptions = { fuel_types: string[]; transmissions: string[] };
 
-type SpecForm = Record<
-  | "year"
-  | "colour"
-  | "description"
-  | "fuel_type"
-  | "engine_cc"
-  | "battery_kwh"
-  | "power_bhp"
-  | "transmission"
-  | "seats"
-  | "mileage_kmpl"
-  | "range_km",
-  string
->;
+const SPEC_FIELDS = [
+  "year",
+  "colour",
+  "description",
+  "fuel_type",
+  "engine_cc",
+  "battery_kwh",
+  "power_bhp",
+  "transmission",
+  "seats",
+  "mileage_kmpl",
+  "range_km"
+] as const;
+
+type SpecForm = Record<(typeof SPEC_FIELDS)[number], string>;
 
 /** The listing's spec sheet as form text; a spec it lacks starts blank. */
 function initialSpecs(listing?: VehicleListing): SpecForm {
