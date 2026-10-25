@@ -136,4 +136,13 @@ describe("Vehicle details", () => {
       screen.getByRole("dialog", { name: "Tata Nexon" })
     ).toBeInTheDocument();
   });
+
+  it("shows the car's photo", async () => {
+    const photo = "https://example.com/nexon.jpg";
+    const { dialog } = await openDetails({ image_url: photo });
+
+    expect(
+      within(dialog).getByRole("img", { name: "Tata Nexon" })
+    ).toHaveAttribute("src", photo);
+  });
 });
