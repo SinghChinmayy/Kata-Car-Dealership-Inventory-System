@@ -48,3 +48,16 @@ def test_seed_demo_creates_a_demo_administrator_and_buyer(
     assert buyer["role"] == "standard_user"
     assert password_hasher.verify(DEMO_ADMIN_PASSWORD, admin["password_hash"])
     assert password_hasher.verify(DEMO_BUYER_PASSWORD, buyer["password_hash"])
+
+
+def test_seed_demo_is_safe_to_run_again(postgres_url: str, postgres_engine, monkeypatch) -> None:
+    """Rerunning it (the reset) keeps the demo accounts and their passwords as they are."""
+    configure(monkeypatch, postgres_url)
+    from app.scripts.seed_demo import main
+
+    main()
+    before = accounts(postgres_engine)
+    configure(monkeypatch, postgres_url, admin_password="another-admin-password")
+    main()
+
+    assert accounts(postgres_engine) == before
