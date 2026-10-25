@@ -6,7 +6,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.py": {
-      "excludeFiles": "{frontend/**,docs/**,plan/**,scripts/**,backend/tests/**,backend/reports/**,backend/htmlcov/**,**/__pycache__/**}"
+      "excludeFiles": "{.*,.*/**,backend/.*,backend/.*/**,backend/tests/**,backend/reports/**,backend/htmlcov/**,frontend/**,docs/**,plan/**,scripts/**,design-samples/**,**/*.md,Makefile,docker-compose.yml,**/__pycache__/**}"
     }
   },
   "rewrites": [
