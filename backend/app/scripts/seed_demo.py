@@ -13,16 +13,80 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.main import RegisterRequest, password_hasher
 
-# (make, model, category, price in INR, quantity); one is sold out to show that state.
+
+def commons_photo(file_path: str) -> str:
+    """Wikimedia's 960px thumbnail of a Commons file, from its "x/xy/File_name.jpg" path."""
+    name = file_path.rsplit("/", 1)[1]
+    return f"https://thumb.wikimedia.org/wikipedia/commons/thumb/{file_path}/960px-{name}"
+
+
+# (make, model, category, price in INR, quantity, photo); one is sold out to show that state.
+# The photos are openly licensed Wikimedia Commons files, credited in docs/image-credits.md.
 SAMPLE_LISTINGS = [
-    ("Tata", "Nexon", "SUV", Decimal("1250000.00"), 5),
-    ("Mahindra", "XUV700", "SUV", Decimal("1899000.00"), 3),
-    ("Hyundai", "Creta", "SUV", Decimal("1450000.00"), 4),
-    ("Maruti Suzuki", "Swift", "Hatchback", Decimal("699000.00"), 8),
-    ("Honda", "City", "Sedan", Decimal("1350000.00"), 2),
-    ("Toyota", "Hilux", "Truck", Decimal("3740000.00"), 1),
-    ("Kia", "Carnival", "Van", Decimal("6390000.00"), 2),
-    ("Ford", "Mustang", "Coupe", Decimal("7500000.00"), 0),
+    (
+        "Tata",
+        "Nexon",
+        "SUV",
+        Decimal("1250000.00"),
+        5,
+        commons_photo("2/25/Tata_Nexon_Blue_Dual_Tone.jpg"),
+    ),
+    (
+        "Mahindra",
+        "XUV700",
+        "SUV",
+        Decimal("1899000.00"),
+        3,
+        commons_photo("b/ba/2021_Mahindra_XUV700_2.2_AX7_%28India%29_front_view.png"),
+    ),
+    (
+        "Hyundai",
+        "Creta",
+        "SUV",
+        Decimal("1450000.00"),
+        4,
+        commons_photo("7/7f/2021_Hyundai_Creta_SX%28O%29_CRDi_%28India%29_front_view.jpg"),
+    ),
+    (
+        "Maruti Suzuki",
+        "Swift",
+        "Hatchback",
+        Decimal("699000.00"),
+        8,
+        commons_photo("9/9a/2018_Suzuki_Swift_SZ5_Boosterjet_SHVS_1.0_Front.jpg"),
+    ),
+    (
+        "Honda",
+        "City",
+        "Sedan",
+        Decimal("1350000.00"),
+        2,
+        commons_photo("9/98/Honda_City_%28fifth_generation%29_facelift.jpg"),
+    ),
+    (
+        "Toyota",
+        "Hilux",
+        "Truck",
+        Decimal("3740000.00"),
+        1,
+        commons_photo("8/81/Toyota_HiLux_GR_Sport_1X7A7281.jpg"),
+    ),
+    (
+        "Kia",
+        "Carnival",
+        "Van",
+        Decimal("6390000.00"),
+        2,
+        commons_photo("f/f7/2021_Kia_Carnival_SXL.jpg"),
+    ),
+    (
+        "Ford",
+        "Mustang",
+        "Coupe",
+        Decimal("7500000.00"),
+        0,
+        commons_photo("5/5d/2018_Ford_Mustang_GT_5.0_Front.jpg"),
+    ),
 ]
 
 
@@ -73,11 +137,12 @@ def main() -> None:
             ),
             {"admin": admin_id},
         )
-        for make, model, category, price, quantity in SAMPLE_LISTINGS:
+        for make, model, category, price, quantity, image_url in SAMPLE_LISTINGS:
             session.execute(
                 text(
-                    "INSERT INTO vehicle_listings (id, make, model, category, price, quantity) "
-                    "VALUES (:id, :make, :model, :category, :price, :quantity)"
+                    "INSERT INTO vehicle_listings "
+                    "(id, make, model, category, price, quantity, image_url) "
+                    "VALUES (:id, :make, :model, :category, :price, :quantity, :image_url)"
                 ),
                 {
                     "id": uuid4(),
@@ -86,6 +151,7 @@ def main() -> None:
                     "category": category,
                     "price": price,
                     "quantity": quantity,
+                    "image_url": image_url,
                 },
             )
         session.commit()
