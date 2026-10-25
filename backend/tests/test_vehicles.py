@@ -1366,3 +1366,33 @@ def test_a_listing_can_carry_an_optional_spec_sheet(
     assert with_specs.status_code == 201
     assert {field: with_specs.json().get(field) for field in SPECS} == SPECS
     assert all(without_specs.json().get(field) is None for field in SPECS)
+
+
+def test_a_full_update_replaces_or_clears_the_spec_sheet(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """PUT replaces every catalogue field: new specs replace the old; leaving them out clears."""
+    use_test_database(postgres_url, monkeypatch)
+    electric = {
+        **SPECS,
+        "fuel_type": "Electric",
+        "engine_cc": None,
+        "battery_kwh": "45.0",
+        "transmission": "Automatic",
+        "mileage_kmpl": None,
+        "range_km": 489,
+    }
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        created = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": 1, **SPECS}
+        )
+        path = f"/api/vehicles/{created.json()['id']}"
+        replaced = client.put(path, headers=headers, json={**NEXON, **electric})
+        cleared = client.put(path, headers=headers, json=NEXON)
+
+    assert replaced.status_code == 200
+    assert {field: replaced.json()[field] for field in SPECS} == electric
+    assert cleared.status_code == 200
+    assert all(cleared.json()[field] is None for field in SPECS)
