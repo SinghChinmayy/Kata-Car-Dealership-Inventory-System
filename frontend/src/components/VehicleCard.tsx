@@ -33,8 +33,15 @@ export function VehicleCard({
       aria-labelledby={titleId}
       className="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white"
     >
-      {/* Keyed by URL so a new photo gets a fresh try after an earlier one failed. */}
-      <VehiclePhoto key={listing.image_url} listing={listing} />
+      {/* Clicking the photo is a mouse shortcut for the title button, which keyboard
+          users reach instead, so the photo adds no second tab stop. */}
+      <div
+        className={onOpenDetails ? "cursor-pointer" : undefined}
+        onClick={onOpenDetails ? () => onOpenDetails(listing) : undefined}
+      >
+        {/* Keyed by URL so a new photo gets a fresh try after an earlier one failed. */}
+        <VehiclePhoto key={listing.image_url} listing={listing} />
+      </div>
       <div className="flex flex-1 flex-col p-5">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
           {listing.category}
