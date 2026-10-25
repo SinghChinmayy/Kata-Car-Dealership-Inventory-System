@@ -28,9 +28,31 @@ cd ../frontend && npm ci
 
 The seed command (`make seed-admin`) creates the first Administrator from `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` in `.env`, which follow the same rules as registration. It is safe to rerun, since an existing Administrator is left unchanged. If that email already belongs to a Standard User, the command refuses rather than promoting it, so nobody who registered the address first can inherit administrator rights. Change the example password before using it anywhere shared. The SPA's development server proxies `/api` to the API on port 8000, so open `http://localhost:5173`.
 
+`make seed-demo` creates the published demo logins from `DEMO_ADMIN_*` and `DEMO_BUYER_*` in `.env` and resets the catalogue to eight sample vehicles, one of them sold out. Rerunning it is the reset: the demo accounts and their passwords are kept, every active listing is soft-deleted by the demo administrator, and a fresh copy of the samples is added, so purchase records keep their listings. It refuses a demo email that already belongs to an account with a different role. Set the matching `VITE_DEMO_*` variables when building the SPA to list both logins under the sign-in form, each with a button that fills it in; with them unset, nothing is shown.
+
 Start the API with `cd backend && uv run uvicorn app.main:app --reload`, and the SPA with `cd frontend && npm run dev`. FastAPI's local OpenAPI documentation is available at `http://localhost:8000/docs`; `GET /health` verifies database readiness.
 
 Common commands are exposed through the root `Makefile`: `make migrate`, `make test-backend`, `make test-frontend`, and `make lint`. Backend integration tests start one disposable PostgreSQL Testcontainers instance, migrate it once per session, and truncate application tables between tests. Docker must be running for that suite.
+
+## Deployment
+
+The app runs on Vercel as one project, `car-dealership-inventory`, with its database on Neon Postgres (added through the Vercel Marketplace). Both are in Singapore (`sin1` / `ap-southeast-1`), the closest Neon region to users in India. The plan and the reasoning behind it are in [plan/vercel_deployment.md](plan/vercel_deployment.md).
+
+- The SPA is built from `frontend/` and served as static files; any path that is not a file falls back to `index.html`.
+- `/api/*` and `/health` are rewritten to one Python function, `api/index.py`, which puts `backend/` on the import path and serves `app.main:app` with its original paths. Because the SPA and API share an origin, no CORS or `VITE_API_BASE_URL` is needed.
+- Vercel installs the API from the root `requirements.txt`. Run `make requirements` whenever `backend/uv.lock` changes; a test fails until you do.
+- `vercel.json` sets the framework to Other, because a detected FastAPI preset would ignore `api/`. Its `excludeFiles` keeps dotfiles (including `.env`), tests, docs, and the frontend source out of the function bundle.
+
+Project environment variables (production and preview):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | Added by the Neon integration. The app uses the pooled `DATABASE_URL` and rewrites its `postgres://` scheme for psycopg. |
+| `JWT_SECRET` | A separate random secret for production and for preview. |
+| `DB_POOL_SIZE` | `1`, because every function instance keeps its own pool. Prepared statements are always disabled, so queries are safe behind Neon's pooler. |
+| `VITE_DEMO_*` | The published demo logins shown on the sign-in page. |
+
+Migrations and seeds run from a laptop against Neon's direct URL, never during the Vercel build: `alembic upgrade head`, then `python -m app.scripts.seed_demo`, with `DATABASE_URL` set to `DATABASE_URL_UNPOOLED` and the `DEMO_*` variables set. The demo administrator is public, so anyone can edit or delete listings; rerun the demo seed to reset the catalogue. Production and preview deployments currently share one database.
 
 ## Test report
 
@@ -160,3 +182,5 @@ Finally, I asked Claude Code to build the Playwright end-to-end journey in a sub
 For the visual refresh, I asked for a more modern, professional, and minimal UI. Claude Code first rendered four sample designs of the same dashboard for me to compare. I chose the clean light design, and a subagent restyled every screen to match it. It kept every label and accessible name the tests rely on, so no test changed. It also checked the result in a real browser at desktop and phone widths, which turned up a clipped category select on phones and stray gaps in two dialogs, both fixed before committing.
 
 While trying the app, I noticed that typing a model ("Hilux") into the Make box found nothing, and asked for fuzzy, as-you-type search. Claude Code explained the cause first: separate Make and Model boxes. It then interviewed me on four choices: one box or two, how forgiving the matching should be, live versus button search, and whether to keep the brief's `make`/`model` API filters. It built the result test-first: a combined `q` parameter, multi-word and typo-tolerant matching with `pg_trgm`, relevance ordering, and debounced live search. It checked against my dev data before calling it done, and found that the "missing" Hilux had simply been deleted.
+
+To deploy, I had Claude Code plan a Vercel setup and then build it one step at a time. It checked Vercel's current documentation before writing configuration, so it found that Vercel now recommends "Services" for a frontend plus a Python API; I chose the older `/api` folder method instead, because Services is still in beta. It made the API Neon-ready test-first: `postgres://` URL rewriting, a configurable pool size, and prepared statements turned off for Neon's pooler. Then it added the entry file, a `requirements.txt` with a drift test, and the Vercel config. A local `vercel build` caught a real leak: the function bundle included `.env` and `.env.local`, because local builds ignore `.vercelignore`. Claude Code narrowed `excludeFiles` until only runtime files remained. It also caught a test that broke coverage reporting, which had let one commit go in with a stale test report. I chose Singapore as the region and accepted Neon's terms. Claude Code set the JWT secrets without them ever appearing in the chat, ran the migrations, and confirmed with read-only checks that the pooled connection and `pg_trgm` worked. When I asked for public demo logins, it first warned me that a public admin lets anyone wipe the catalogue. I chose to add a reset as well, so the demo seed now creates both accounts, refuses addresses someone else registered first, and puts the sample catalogue back. A browser check found the logins truncated on the sign-in page, and Claude Code fixed that before shipping.
