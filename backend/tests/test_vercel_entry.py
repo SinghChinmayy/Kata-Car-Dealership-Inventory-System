@@ -35,3 +35,32 @@ def test_vercel_entry_file_serves_the_api_from_the_repository_root() -> None:
     assert result.returncode == 0, result.stderr
     assert "'/api/vehicles/search'" in result.stdout
     assert "'/health'" in result.stdout
+
+
+def test_vercel_requirements_match_the_lock_file() -> None:
+    """Vercel installs from requirements.txt, so it must be regenerated with backend/uv.lock."""
+    exported = subprocess.run(
+        [
+            "uv",
+            "export",
+            "--project",
+            "backend",
+            "--frozen",
+            "--no-dev",
+            "--no-hashes",
+            "--no-annotate",
+            "--no-header",
+            "--format",
+            "requirements-txt",
+        ],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    committed = (REPOSITORY_ROOT / "requirements.txt").read_text()
+
+    def pins(text: str) -> list[str]:
+        return [line for line in text.splitlines() if line and not line.startswith("#")]
+
+    assert pins(committed) == pins(exported), "requirements.txt is stale: run `make requirements`"

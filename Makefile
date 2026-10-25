@@ -1,4 +1,4 @@
-.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint report
+.PHONY: db-up db-down migrate seed-admin seed-demo test-backend test-frontend e2e lint report requirements
 
 db-up:
 	docker compose up -d postgres
@@ -34,3 +34,7 @@ report:
 	cd backend && uv run coverage report --format=markdown > reports/coverage.md
 	-cd frontend && npx vitest run --reporter=default --reporter=json --outputFile.json=reports/vitest.json
 	python3 scripts/test_report.py
+
+# Vercel installs the API from this file; regenerate it whenever backend/uv.lock changes.
+requirements:
+	uv export --project backend --frozen --no-dev --no-hashes --no-annotate --format requirements-txt -o requirements.txt
