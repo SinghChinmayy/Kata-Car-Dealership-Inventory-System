@@ -39,7 +39,9 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
         make: form.make,
         model: form.model,
         category: form.category,
-        price: form.price
+        price: form.price,
+        // A blank field means no photo; edits send it too, as PUT replaces every field.
+        image_url: form.image_url.trim() || null
       };
       return listing
         ? api<VehicleListing>(`/api/vehicles/${listing.id}`, {
@@ -48,12 +50,7 @@ export function VehicleFormDialog({ listing, categories, onClose }: Props) {
           })
         : api<VehicleListing>("/api/vehicles", {
             method: "POST",
-            body: {
-              ...catalogue,
-              quantity: Number(form.quantity),
-              // A blank field means no photo.
-              image_url: form.image_url.trim() || null
-            }
+            body: { ...catalogue, quantity: Number(form.quantity) }
           });
     },
     onSuccess: (saved) => {
