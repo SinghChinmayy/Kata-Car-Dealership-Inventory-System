@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { buyer, listing, page } from "../test/fixtures";
+import { administrator, buyer, listing, page } from "../test/fixtures";
 import { renderSignedIn } from "../test/render";
 import { server } from "../test/server";
 
@@ -169,5 +169,44 @@ describe("Vehicle details", () => {
     expect(
       within(dialog).getByRole("button", { name: "Purchase" })
     ).toBeDisabled();
+  });
+
+  it("gives administrators the card's Edit, Restock and Delete", async () => {
+    server.use(
+      http.get("*/api/vehicles/search", () =>
+        HttpResponse.json(page([listing()]))
+      )
+    );
+    const { user } = await renderSignedIn(administrator);
+    const card = await screen.findByRole("article", { name: "Tata Nexon" });
+    async function chooseInDetails(action: string) {
+      await user.click(
+        within(card).getByRole("button", { name: "Tata Nexon" })
+      );
+      const details = screen.getByRole("dialog", { name: "Tata Nexon" });
+      await user.click(within(details).getByRole("button", { name: action }));
+    }
+    async function cancel() {
+      await user.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: "Cancel"
+        })
+      );
+    }
+
+    await chooseInDetails("Edit");
+    expect(
+      screen.getByRole("dialog", { name: "Edit vehicle" })
+    ).toBeInTheDocument();
+    await cancel();
+    await chooseInDetails("Restock");
+    expect(
+      screen.getByRole("dialog", { name: "Restock Tata Nexon" })
+    ).toBeInTheDocument();
+    await cancel();
+    await chooseInDetails("Delete");
+    expect(
+      screen.getByRole("dialog", { name: "Delete Tata Nexon?" })
+    ).toBeInTheDocument();
   });
 });
