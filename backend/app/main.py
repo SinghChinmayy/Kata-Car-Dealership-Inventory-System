@@ -46,6 +46,7 @@ SPEC_FIELDS = (
 # Fixed SQL fragments for the spec columns and their bound parameters (never user input).
 SPEC_COLUMNS = ", ".join(SPEC_FIELDS)
 SPEC_PARAMETERS = ", ".join(f":{field}" for field in SPEC_FIELDS)
+SPEC_ASSIGNMENTS = ", ".join(f"{field} = :{field}" for field in SPEC_FIELDS)
 LISTING_COLUMNS = ", ".join(
     ("id", "make", "model", "category", "price", "quantity", "image_url", *SPEC_FIELDS)
     + ("created_at", "updated_at")
@@ -606,7 +607,7 @@ def create_app() -> FastAPI:
                 text(
                     "UPDATE vehicle_listings SET make = :make, model = :model, "
                     "category = :category, price = :price, image_url = :image_url, "
-                    "updated_at = CURRENT_TIMESTAMP "
+                    f"{SPEC_ASSIGNMENTS}, updated_at = CURRENT_TIMESTAMP "
                     "WHERE id = :id AND deleted_at IS NULL "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
@@ -617,6 +618,7 @@ def create_app() -> FastAPI:
                     "category": payload.category.value,
                     "price": payload.price,
                     "image_url": payload.image_url,
+                    **payload.model_dump(include=set(SPEC_FIELDS)),
                 },
             )
             .mappings()
