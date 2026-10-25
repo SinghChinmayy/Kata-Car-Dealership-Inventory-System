@@ -19,30 +19,9 @@ PHOTOS = "https://a4djhfyric3en0ge.public.blob.vercel-storage.com/cars/"
 
 # (make, model, category, price in INR, quantity, photo); one is sold out to show that state.
 SAMPLE_LISTINGS = [
-    (
-        "Tata",
-        "Nexon",
-        "SUV",
-        Decimal("1250000.00"),
-        5,
-        PHOTOS + "tata-nexon.jpg",
-    ),
-    (
-        "Mahindra",
-        "XUV 3XO",
-        "SUV",
-        Decimal("1149000.00"),
-        3,
-        PHOTOS + "mahindra-xuv-3xo.jpg",
-    ),
-    (
-        "Hyundai",
-        "Creta",
-        "SUV",
-        Decimal("1450000.00"),
-        4,
-        PHOTOS + "hyundai-creta.jpg",
-    ),
+    ("Tata", "Nexon", "SUV", Decimal("1250000.00"), 5, PHOTOS + "tata-nexon.jpg"),
+    ("Mahindra", "XUV 3XO", "SUV", Decimal("1149000.00"), 3, PHOTOS + "mahindra-xuv-3xo.jpg"),
+    ("Hyundai", "Creta", "SUV", Decimal("1450000.00"), 4, PHOTOS + "hyundai-creta.jpg"),
     (
         "Maruti Suzuki",
         "Swift",
@@ -51,38 +30,10 @@ SAMPLE_LISTINGS = [
         8,
         PHOTOS + "maruti-suzuki-swift.jpg",
     ),
-    (
-        "Honda",
-        "City",
-        "Sedan",
-        Decimal("1350000.00"),
-        2,
-        PHOTOS + "honda-city.jpg",
-    ),
-    (
-        "Toyota",
-        "Hilux",
-        "Truck",
-        Decimal("3740000.00"),
-        1,
-        PHOTOS + "toyota-hilux.jpg",
-    ),
-    (
-        "Kia",
-        "Carnival",
-        "Van",
-        Decimal("6390000.00"),
-        2,
-        PHOTOS + "kia-carnival.jpg",
-    ),
-    (
-        "Ford",
-        "Mustang",
-        "Coupe",
-        Decimal("7500000.00"),
-        0,
-        PHOTOS + "ford-mustang.jpg",
-    ),
+    ("Honda", "City", "Sedan", Decimal("1350000.00"), 2, PHOTOS + "honda-city.jpg"),
+    ("Toyota", "Hilux", "Truck", Decimal("3740000.00"), 1, PHOTOS + "toyota-hilux.jpg"),
+    ("Kia", "Carnival", "Van", Decimal("6390000.00"), 2, PHOTOS + "kia-carnival.jpg"),
+    ("Ford", "Mustang", "Coupe", Decimal("7500000.00"), 0, PHOTOS + "ford-mustang.jpg"),
 ]
 
 
