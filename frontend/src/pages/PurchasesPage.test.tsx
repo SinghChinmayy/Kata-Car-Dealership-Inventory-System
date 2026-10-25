@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { buyer, page, purchase } from "../test/fixtures";
+import { apiError } from "../test/handlers";
 import { renderSignedIn } from "../test/render";
 import { server } from "../test/server";
 
@@ -83,5 +84,22 @@ describe("My purchases", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
     expect(requestedPages).toEqual([null, "2"]);
+  });
+
+  it("says so when the history cannot be loaded", async () => {
+    server.use(
+      http.get("*/api/purchases/me", () =>
+        apiError(503, "service_unavailable", "Database is unavailable.")
+      )
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.click(screen.getByRole("link", { name: "My purchases" }));
+
+    // One retry for a server error comes first, as everywhere else in the app.
+    expect(
+      await screen.findByRole("alert", {}, { timeout: 3000 })
+    ).toHaveTextContent("Database is unavailable.");
+    expect(screen.queryByText("Loading purchases…")).not.toBeInTheDocument();
   });
 });
