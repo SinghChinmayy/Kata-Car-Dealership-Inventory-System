@@ -25,15 +25,7 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
       aria-labelledby={titleId}
       className="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white"
     >
-      {listing.image_url && (
-        <img
-          src={listing.image_url}
-          alt={`${listing.make} ${listing.model}`}
-          loading="lazy"
-          decoding="async"
-          className="aspect-[16/10] w-full bg-zinc-100 object-cover"
-        />
-      )}
+      <VehiclePhoto listing={listing} />
       <div className="flex flex-1 flex-col p-5">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
           {listing.category}
@@ -91,5 +83,53 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
         )}
       </div>
     </article>
+  );
+}
+
+const photoFrame = "aspect-[16/10] w-full bg-zinc-100";
+
+/** The listing's photo, or a placeholder of the same shape so every card lines up. */
+function VehiclePhoto({ listing }: { listing: VehicleListing }) {
+  if (!listing.image_url) {
+    return (
+      <div
+        role="img"
+        aria-label="No photo available"
+        className={`${photoFrame} flex items-center justify-center text-zinc-300`}
+      >
+        <CarIcon />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={listing.image_url}
+      alt={`${listing.make} ${listing.model}`}
+      loading="lazy"
+      decoding="async"
+      className={`${photoFrame} object-cover`}
+    />
+  );
+}
+
+/** Outline of a car for the placeholder; its frame carries the accessible name. */
+function CarIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 48 48"
+      className="h-12 w-12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 30v-5l5-9h20l7 8 4 1.5V30h-3" />
+      <path d="M17 30h12" />
+      <circle cx="12.5" cy="31" r="3.5" />
+      <circle cx="33.5" cy="31" r="3.5" />
+      <path d="M13 16v8h21" />
+    </svg>
   );
 }
