@@ -9,6 +9,7 @@ import { AppHeader } from "../components/AppHeader";
 import { DeleteListingDialog } from "../components/DeleteListingDialog";
 import { FormAlert } from "../components/FormAlert";
 import { Pagination } from "../components/Pagination";
+import { PurchaseDialog } from "../components/PurchaseDialog";
 import {
   FILTER_KEYS,
   SearchFilters,
@@ -22,6 +23,7 @@ import { primaryButton } from "../components/buttonStyles";
 import { useAuth } from "../auth/AuthContext";
 
 type Dialog =
+  | { kind: "purchase"; listing: VehicleListing }
   | { kind: "add" }
   | { kind: "edit"; listing: VehicleListing }
   | { kind: "delete"; listing: VehicleListing }
@@ -86,9 +88,11 @@ export function DashboardPage() {
     onSuccess: (updated) => {
       // The response is the listing after the sale.
       patchCachedListing(queryClient, updated);
+      closeDialog();
       toast(`Purchased ${updated.make} ${updated.model}`);
     },
     onError: (error) => {
+      closeDialog();
       toast(errorMessage(error));
       if (error instanceof ApiError && error.status === 409) {
         void queryClient.invalidateQueries({
@@ -151,7 +155,9 @@ export function DashboardPage() {
                 listing={listing}
                 // One purchase at a time: a second click anywhere waits for the first.
                 purchasing={purchase.isPending}
-                onPurchase={(selected) => purchase.mutate(selected)}
+                onPurchase={(selected) =>
+                  setDialog({ kind: "purchase", listing: selected })
+                }
                 admin={isAdmin ? adminActions : undefined}
               />
             ))}
@@ -166,6 +172,14 @@ export function DashboardPage() {
           />
         )}
       </main>
+      {dialog?.kind === "purchase" && (
+        <PurchaseDialog
+          listing={dialog.listing}
+          purchasing={purchase.isPending}
+          onConfirm={() => purchase.mutate(dialog.listing)}
+          onClose={closeDialog}
+        />
+      )}
       {dialog?.kind === "restock" && (
         <RestockDialog listing={dialog.listing} onClose={closeDialog} />
       )}
