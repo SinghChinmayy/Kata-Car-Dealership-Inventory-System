@@ -1311,3 +1311,23 @@ def test_a_full_update_replaces_or_clears_the_photo_url(
     assert replaced.json()["image_url"] == other_photo
     assert cleared.status_code == 200
     assert cleared.json()["image_url"] is None
+
+
+@pytest.mark.parametrize(
+    "image_url",
+    ["javascript:alert(1)", "ftp://example.com/car.jpg", "/images/car.jpg", "not a url"],
+)
+def test_photo_urls_must_be_absolute_http_urls(
+    postgres_url: str, postgres_engine, monkeypatch, image_url: str
+) -> None:
+    """Only web addresses are stored, so a listing photo can never be a script or a local path."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        response = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": 1, "image_url": image_url}
+        )
+
+    assert response.status_code == 422
+    assert list(response.json()["error"]["fields"]) == ["image_url"]
