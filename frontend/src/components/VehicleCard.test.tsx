@@ -25,4 +25,15 @@ describe("Vehicle card", () => {
       PHOTO
     );
   });
+
+  it("shows a placeholder when the listing has no photo", () => {
+    renderCard({ image_url: null });
+
+    expect(
+      screen.getByRole("img", { name: "No photo available" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Tata Nexon" })
+    ).not.toBeInTheDocument();
+  });
 });
