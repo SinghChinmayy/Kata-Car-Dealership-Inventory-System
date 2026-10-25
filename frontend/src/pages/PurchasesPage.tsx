@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import type { PurchasePage } from "../api/types";
 import { useApi } from "../api/useApi";
 import { AppHeader } from "../components/AppHeader";
+import { textLink } from "../components/buttonStyles";
 import { formatDateTime, formatPrice } from "../format";
 
 export function PurchasesPage() {
@@ -21,10 +23,20 @@ export function PurchasesPage() {
         <p className="mt-0.5 text-sm text-zinc-500">
           {purchases.data
             ? `${purchases.data.total} ${purchases.data.total === 1 ? "purchase" : "purchases"}`
-            : " "}
+            : "\u00a0"}
         </p>
         {purchases.isPending && (
           <p className="mt-6 text-sm text-zinc-500">Loading purchases…</p>
+        )}
+        {purchases.data && purchases.data.items.length === 0 && (
+          <div className="mt-6 rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-500">
+            <p>You haven't bought any vehicles yet.</p>
+            <p className="mt-2">
+              <Link to="/" className={textLink}>
+                Browse inventory
+              </Link>
+            </p>
+          </div>
         )}
         {purchases.data && purchases.data.items.length > 0 && (
           <ul
