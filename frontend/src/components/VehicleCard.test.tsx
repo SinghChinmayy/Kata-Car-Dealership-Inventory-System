@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { VehicleListing } from "../api/types";
 import { listing } from "../test/fixtures";
@@ -28,6 +28,19 @@ describe("Vehicle card", () => {
 
   it("shows a placeholder when the listing has no photo", () => {
     renderCard({ image_url: null });
+
+    expect(
+      screen.getByRole("img", { name: "No photo available" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Tata Nexon" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to the placeholder when the photo fails to load", () => {
+    renderCard({ image_url: PHOTO });
+
+    fireEvent.error(screen.getByRole("img", { name: "Tata Nexon" }));
 
     expect(
       screen.getByRole("img", { name: "No photo available" })
