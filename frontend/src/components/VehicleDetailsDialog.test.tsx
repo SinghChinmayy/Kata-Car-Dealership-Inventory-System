@@ -85,4 +85,30 @@ describe("Vehicle details", () => {
       specs(within(dialog).getByRole("region", { name: "Practicality" }))
     ).toEqual({ Seats: "5", Mileage: "17.4 km/l" });
   });
+
+  it("shows an electric car's battery and range", async () => {
+    const { dialog } = await openDetails({
+      ...PETROL_SPECS,
+      fuel_type: "Electric",
+      engine_cc: null,
+      battery_kwh: "45.0",
+      transmission: "Automatic",
+      mileage_kmpl: null,
+      range_km: 489
+    });
+
+    expect(
+      specs(
+        within(dialog).getByRole("region", { name: "Engine & performance" })
+      )
+    ).toEqual({
+      Fuel: "Electric",
+      Battery: "45.0 kWh",
+      Power: "118 bhp",
+      Transmission: "Automatic"
+    });
+    expect(
+      specs(within(dialog).getByRole("region", { name: "Practicality" }))
+    ).toEqual({ Seats: "5", Range: "489 km" });
+  });
 });
