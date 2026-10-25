@@ -212,6 +212,11 @@ class VehicleCategoriesOut(BaseModel):
     items: list[str]
 
 
+class VehicleSpecOptionsOut(BaseModel):
+    fuel_types: list[str]
+    transmissions: list[str]
+
+
 def spec_values(payload: VehicleCatalogueFields) -> dict[str, Any]:
     """The spec sheet as statement parameters, with vocabulary members as their text."""
     return {
@@ -626,6 +631,16 @@ def create_app() -> FastAPI:
     ) -> VehicleCategoriesOut:
         """Expose the backend-owned category vocabulary to authenticated clients."""
         return VehicleCategoriesOut(items=[category.value for category in VehicleCategory])
+
+    @app.get("/api/vehicles/spec-options", response_model=VehicleSpecOptionsOut, tags=["vehicles"])
+    def list_vehicle_spec_options(
+        _: UserOut = Depends(get_current_user),  # noqa: B008
+    ) -> VehicleSpecOptionsOut:
+        """Expose the backend-owned fuel and transmission vocabularies, as for categories."""
+        return VehicleSpecOptionsOut(
+            fuel_types=[fuel.value for fuel in FuelType],
+            transmissions=[transmission.value for transmission in Transmission],
+        )
 
     @app.put("/api/vehicles/{listing_id}", response_model=VehicleListingOut, tags=["vehicles"])
     def update_vehicle_listing(
