@@ -41,4 +41,21 @@ describe("My purchases", () => {
     expect(nexon).toHaveTextContent("₹12,50,000.00");
     expect(nexon).toHaveTextContent("24 Oct 2026");
   });
+
+  it("points to the inventory when nothing has been bought yet", async () => {
+    server.use(
+      http.get("*/api/purchases/me", () => HttpResponse.json(page([])))
+    );
+    const { user } = await renderSignedIn(buyer);
+
+    await user.click(screen.getByRole("link", { name: "My purchases" }));
+    expect(
+      await screen.findByText("You haven't bought any vehicles yet.")
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Browse inventory" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Inventory" })
+    ).toBeInTheDocument();
+  });
 });
