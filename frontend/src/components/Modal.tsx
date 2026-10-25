@@ -7,11 +7,20 @@ const FOCUSABLE =
 
 /**
  * Accessible modal: labelled by its title, focuses its first control, keeps Tab inside
- * itself, and closes on Escape.
+ * itself, closes on Escape, and hands focus back to its opener when it closes.
  */
 export function Modal({ title, onClose, children }: Props) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
+
+  // Declared first, so it records the opener before the next effect moves focus inside.
+  useEffect(() => {
+    const opener = document.activeElement;
+    return () => {
+      // The opener can be gone by now, e.g. the card of a listing just deleted.
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, []);
 
   useEffect(() => {
     panel.current
