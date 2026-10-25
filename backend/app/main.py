@@ -14,7 +14,8 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from pwdlib import PasswordHash
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, TypeAdapter, field_validator
+from pydantic_core import PydanticCustomError
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -37,6 +38,7 @@ MAX_PAGE = 10_000
 # pg_trgm word_similarity cut-off: one wrong or missing letter in a short word still matches.
 FUZZY_MATCH_THRESHOLD = 0.5
 password_hasher = PasswordHash.recommended()
+web_address = TypeAdapter(HttpUrl)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -86,6 +88,20 @@ class VehicleCatalogueFields(BaseModel):
     def trim_text(cls, value: object) -> object:
         """Normalize catalogue text before applying its required-length rule."""
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("image_url")
+    @classmethod
+    def require_web_address(cls, value: Optional[str]) -> Optional[str]:
+        """Accept only absolute http(s) URLs, stored exactly as given (no normalization)."""
+        if value is not None:
+            try:
+                web_address.validate_python(value)
+            except ValueError as exc:
+                # A fixed message: the parser's own text would repeat the submitted value.
+                raise PydanticCustomError(
+                    "url", "Enter a full web address starting with http:// or https://."
+                ) from exc
+        return value
 
 
 class CreateVehicleRequest(VehicleCatalogueFields):
