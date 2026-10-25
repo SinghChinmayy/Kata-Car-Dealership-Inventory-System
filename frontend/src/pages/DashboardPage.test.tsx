@@ -57,6 +57,11 @@ describe("Dashboard", () => {
     const card = await screen.findByRole("article", { name: "Tata Nexon" });
 
     await user.click(within(card).getByRole("button", { name: "Purchase" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Confirm purchase"
+      })
+    );
 
     expect(await within(card).findByText("Out of stock")).toBeInTheDocument();
     expect(
@@ -88,6 +93,11 @@ describe("Dashboard", () => {
     );
 
     await user.click(within(card).getByRole("button", { name: "Purchase" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Confirm purchase"
+      })
+    );
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
@@ -143,6 +153,11 @@ describe("Dashboard", () => {
     const swiftCard = screen.getByRole("article", { name: "Maruti Swift" });
 
     await user.click(within(nexon).getByRole("button", { name: "Purchase" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Confirm purchase"
+      })
+    );
 
     expect(
       within(nexon).getByRole("button", { name: "Purchase" })

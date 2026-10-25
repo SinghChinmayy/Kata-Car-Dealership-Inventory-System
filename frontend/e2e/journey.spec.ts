@@ -54,6 +54,8 @@ test("administrator lists a vehicle and a new buyer purchases the last unit", as
   await expect(card).toBeVisible();
 
   await card.getByRole("button", { name: "Purchase" }).click();
+  const confirm = page.getByRole("dialog", { name: `Buy ${carName}?` });
+  await confirm.getByRole("button", { name: "Confirm purchase" }).click();
   await expect(page.getByRole("status")).toHaveText(`Purchased ${carName}`);
   await expect(card.getByText("Out of stock")).toBeVisible();
   await expect(card.getByRole("button", { name: "Purchase" })).toBeDisabled();
