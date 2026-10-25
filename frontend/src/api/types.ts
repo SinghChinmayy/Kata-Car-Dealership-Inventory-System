@@ -14,6 +14,20 @@ export type VehicleListing = {
   quantity: number;
   /** Absolute http(s) photo URL, or null when the listing has none. */
   image_url: string | null;
+  /** Optional spec sheet; every field is null when the listing does not have it. */
+  year: number | null;
+  colour: string | null;
+  description: string | null;
+  fuel_type: string | null;
+  engine_cc: number | null;
+  /** Exact decimal string, e.g. "45.0". */
+  battery_kwh: string | null;
+  power_bhp: number | null;
+  transmission: string | null;
+  seats: number | null;
+  /** Exact decimal string, e.g. "17.4". */
+  mileage_kmpl: string | null;
+  range_km: number | null;
   created_at: string;
   updated_at: string;
 };
