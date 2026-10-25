@@ -8,13 +8,19 @@ A full-stack inventory system for a car dealership. Administrators manage vehicl
 
 ## Screenshots
 
-| Administrator dashboard | Adding a vehicle |
+| Administrator dashboard | Vehicle details |
 | --- | --- |
-| ![Administrator dashboard with Add vehicle, per-card Edit, Restock and Delete, and a sold-out listing](docs/screenshots/02-admin-dashboard.png) | ![Add vehicle dialog](docs/screenshots/03-add-vehicle-dialog.png) |
+| ![Administrator dashboard: a grid of vehicle cards with photos, prices and stock, an Add vehicle button, and Edit, Restock and Delete on each card](docs/screenshots/02-admin-dashboard.jpg) | ![Details dialog for a Hyundai Creta: photo, category, year and colour, price and stock, then Overview and Engine & performance sections](docs/screenshots/03-vehicle-details.jpg) |
 
-| Buyer search and purchase | Sign in | Phone layout |
-| --- | --- | --- |
-| ![Buyer filtering SUVs under ₹20,00,000 after buying a Tata Nexon](docs/screenshots/04-buyer-search-and-purchase.png) | ![Sign-in page](docs/screenshots/01-sign-in.png) | ![Phone layout with an out-of-stock listing and disabled Purchase button](docs/screenshots/05-mobile-out-of-stock.png) |
+| Editing a vehicle's spec sheet | Buyer search and purchase |
+| --- | --- |
+| ![Edit vehicle form for a Tata Nexon with the Overview, Engine & performance and Practicality sections filled in](docs/screenshots/04-edit-vehicle-form.jpg) | ![A buyer filtering SUVs under ₹20,00,000, with the Buy Tata Nexon? confirmation open and Cancel next to Confirm purchase](docs/screenshots/05-buyer-search-and-purchase.jpg) |
+
+| Sign in | Phone layout |
+| --- | --- |
+| ![Sign-in page with the demo administrator and buyer logins and their Use demo buttons](docs/screenshots/01-sign-in.jpg) | ![Phone layout searching for a Ford Mustang that is out of stock, with its Purchase button disabled](docs/screenshots/06-mobile-out-of-stock.jpg) |
+
+The screenshots show the demo catalogue from `make seed-demo`; its photos are public-domain or CC0 Wikimedia Commons files.
 
 ## Architecture
 
@@ -230,6 +236,7 @@ erDiagram
 - `AuthProvider` signs in with `POST /api/auth/login` followed by `GET /api/auth/me`, and keeps the token and account in React state only (ADR 0003). Registering creates the account and then signs in. Logging out clears the query cache, so one account's results never show to the next.
 - `useApi` adds the bearer token to every request. A `401` on a signed-in request ends the session and shows a notice, and the route guards return to sign in.
 - `DashboardPage` reads the filters and page number from the URL and fetches `GET /api/vehicles/search` under the query key `["vehicles", "search", filters, page]`. Categories are fetched once per session. After a purchase or restock, the listing returned by the API replaces the old copy in every cached page; after a create, edit, delete, or sold-out conflict, the search is fetched again.
+- `DashboardPage` shows one dialog at a time: a listing's details, the purchase confirmation, the add or edit form, restock, or delete. The details dialog hands over to the others, so Purchase or Edit there replaces it. Every dialog is a `Modal`, which traps Tab focus, closes on Escape, and returns focus to the control that opened it. The form loads the fuel and transmission lists from `GET /api/vehicles/spec-options` when it opens.
 - `apiRequest` turns the error envelope into an `ApiError`. Forms show field errors beside the matching input and anything else in a banner. Client errors (`4xx`) are never retried; server and network errors get one retry.
 
 ### A purchase, end to end
@@ -243,7 +250,9 @@ sequenceDiagram
     participant API as FastAPI function
     participant DB as Neon Postgres
 
-    Buyer->>SPA: Click Purchase
+    Buyer->>SPA: Click Purchase on a card or in its details
+    SPA-->>Buyer: Ask to confirm, naming the car and its price
+    Buyer->>SPA: Confirm purchase
     SPA->>Vercel: POST /api/vehicles/{id}/purchase with a Bearer token
     Vercel->>API: Rewrite to api/index.py, keeping the original path
     API->>API: Assign the request ID, verify the token
@@ -253,9 +262,10 @@ sequenceDiagram
         API->>DB: INSERT INTO purchases with price, make, model and category copies
         API->>DB: COMMIT
         API-->>SPA: 200 with the updated listing
-        SPA->>SPA: Update the cached card and show a toast
+        SPA->>SPA: Close the dialog, update the cached card, and show a toast
     else No row and the listing is active
         API-->>SPA: 409 out_of_stock
+        SPA->>SPA: Close the dialog and announce the conflict
         SPA->>Vercel: Fetch the search results again
     else No row and the listing is missing or deleted
         API-->>SPA: 404 not_found
@@ -588,3 +598,5 @@ Next I asked Claude Code for photos on the vehicle cards. It added an optional `
 After that I asked Claude Code for a popup with each car's details, in sections, with Purchase for buyers and the admin actions for administrators, all consistent with the rest of the UI. Since listings had no specs, it first asked me which details to add, how a card should open them, and where to build. It found that another session had checked out a different branch in my folder, so it built in a separate git worktree rather than switch branches under that session. Test-first, it added the spec sheet to the API (columns, full-replacement updates, validation, and a vocabulary endpoint), seeded realistic specs for the demo cars, and built the dialog and the form sections one behavior at a time, including a refactor that moved the photo into its own component. It noticed that the new full-replacement update would have wiped specs when editing through the old form, and covered that with a test. When one of its commits slipped through with a formatting error, it fixed it with a new commit and wrote a script that runs every check before each commit. It then checked the dialog for a buyer and an administrator in the browser pane and toned down an all-caps colour line that looked too loud.
 
 When I asked Claude Code to push the merged changes to Vercel, it checked the project's deployments and found that the Vercel project had never been connected to Git: production was still the manual deployment from hours earlier, while CI had been migrating the database. It waited for CI's migration job to finish, deployed `main` from a clean checkout without any `.env` files, and confirmed on the live site that the new code was serving. It recommended deploying from CI after the migration rather than connecting Vercel's Git integration, which would deploy in parallel and could briefly run new code against the old schema. At my request it added that deploy job, tested its missing-secret guard locally, and corrected the README, which still described the Git integration and preview deployments.
+
+To finish, I asked Claude Code to update the README and its screenshots to match these changes. It captured six new screenshots with Playwright from the local demo, at the same sizes as before and saved as JPEG so the photos stay light: the sign-in page, the administrator dashboard, the new details dialog, the edit form with its spec sections, a filtered search with the purchase confirmation, and the phone layout. It drove the pages through the demo login buttons and the filter bar, because reloading a page signs out, and it never confirmed a purchase or saved a form. It reviewed each image before replacing the old ones.
