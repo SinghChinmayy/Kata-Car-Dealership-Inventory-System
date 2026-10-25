@@ -13,11 +13,19 @@ type Props = {
   listing: VehicleListing;
   purchasing: boolean;
   onPurchase: (listing: VehicleListing) => void;
+  /** Opens the listing's details; without it the name is plain text. */
+  onOpenDetails?: (listing: VehicleListing) => void;
   /** Present only for administrators. */
   admin?: AdminActions;
 };
 
-export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
+export function VehicleCard({
+  listing,
+  purchasing,
+  onPurchase,
+  onOpenDetails,
+  admin
+}: Props) {
   const titleId = useId();
   const inStock = listing.quantity > 0;
   return (
@@ -32,7 +40,18 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
           {listing.category}
         </p>
         <h3 id={titleId} className="mt-1 text-base font-semibold text-zinc-900">
-          {listing.make} {listing.model}
+          {onOpenDetails ? (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              className={titleButton}
+              onClick={() => onOpenDetails(listing)}
+            >
+              {listing.make} {listing.model}
+            </button>
+          ) : (
+            `${listing.make} ${listing.model}`
+          )}
         </h3>
         <p className="mt-4 text-2xl font-semibold tabular-nums tracking-tight text-zinc-900">
           {formatPrice(listing.price)}
@@ -88,6 +107,10 @@ export function VehicleCard({ listing, purchasing, onPurchase, admin }: Props) {
 }
 
 const photoFrame = "aspect-[16/10] w-full bg-zinc-100";
+
+/** The card title as a quiet link-like button: same type, underline on hover and focus. */
+const titleButton =
+  "rounded-sm text-left underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2";
 
 /**
  * The listing's photo, or a placeholder of the same shape so every card lines up. A photo
