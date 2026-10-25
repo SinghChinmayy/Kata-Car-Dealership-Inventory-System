@@ -3,6 +3,7 @@ import { GuestOnly, RequireSession } from "./auth/guards";
 import { ToastProvider } from "./components/Toast";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PurchasesPage } from "./pages/PurchasesPage";
 import { RegisterPage } from "./pages/RegisterPage";
 
 export default function App() {
@@ -30,6 +31,14 @@ export default function App() {
           element={
             <RequireSession>
               <DashboardPage />
+            </RequireSession>
+          }
+        />
+        <Route
+          path="/purchases"
+          element={
+            <RequireSession>
+              <PurchasesPage />
             </RequireSession>
           }
         />

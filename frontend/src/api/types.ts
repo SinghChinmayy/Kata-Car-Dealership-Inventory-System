@@ -38,3 +38,22 @@ export type ListingPage = {
   page: number;
   page_size: number;
 };
+
+/** A sale as recorded: make, model, category, and price are snapshots from that moment. */
+export type Purchase = {
+  id: string;
+  listing_id: string;
+  make: string;
+  model: string;
+  category: string;
+  /** Exact decimal string in INR that was paid (ADR 0010). */
+  price: string;
+  purchased_at: string;
+};
+
+export type PurchasePage = {
+  items: Purchase[];
+  total: number;
+  page: number;
+  page_size: number;
+};
