@@ -57,7 +57,7 @@ flowchart TB
 
     subgraph db["PostgreSQL"]
         tables[("user_accounts, vehicle_listings,<br/>purchases, stock_adjustments")]
-        alembic["Alembic migrations 0001 to 0008"]
+        alembic["Alembic migrations 0001 to 0009"]
         alembic -.-> tables
     end
 
@@ -116,7 +116,7 @@ Tests never touch the development database. The backend suite starts its own Tes
 | `backend/app/core/` | Settings from the environment or `.env`, JSON logging with redaction, the request ID helper |
 | `backend/app/db/` | The SQLAlchemy engine and the per-request session |
 | `backend/app/scripts/` | The `seed_admin` and `seed_demo` commands |
-| `backend/alembic/versions/` | Migrations 0001 to 0008, the only way the schema changes |
+| `backend/alembic/versions/` | Migrations 0001 to 0009, the only way the schema changes |
 | `backend/tests/` | The pytest suite, run against a real PostgreSQL |
 | `api/index.py` | The Vercel entry point, which imports `app.main:app` from `backend/` |
 | `frontend/src/` | The SPA: `api/` (fetch client, query client, cache helpers), `auth/` (session and route guards), `pages/`, and `components/` |
@@ -181,6 +181,7 @@ erDiagram
         string category
         numeric price
         int quantity
+        string image_url
         timestamptz created_at
         timestamptz updated_at
         timestamptz deleted_at
@@ -208,7 +209,7 @@ erDiagram
 - Every primary key is a UUID (ADR 0013), and every foreign key is `ON DELETE RESTRICT`, so no account or listing with history can be removed.
 - Listings are never hard-deleted. `deleted_at` and `deleted_by` are set together, and every query for active listings filters on `deleted_at IS NULL`.
 - A purchase copies the listing's price, make, model, and category at the time of sale, so later edits never change what was sold.
-- Prices are `NUMERIC(14, 2)` in INR (ADR 0010). Migration 0008 enables `pg_trgm` for the fuzzy search.
+- Prices are `NUMERIC(14, 2)` in INR (ADR 0010). Migration 0008 enables `pg_trgm` for the fuzzy search, and 0009 adds the optional `image_url` photo column.
 
 ### How the SPA works
 
@@ -267,7 +268,7 @@ cd ../frontend && npm ci
 
 The seed command (`make seed-admin`) creates the first Administrator from `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` in `.env`, which follow the same rules as registration. It is safe to rerun, since an existing Administrator is left unchanged. If that email already belongs to a Standard User, the command refuses rather than promoting it, so nobody who registered the address first can inherit administrator rights. Change the example password before using it anywhere shared. The SPA's development server proxies `/api` to the API on port 8000, so open `http://localhost:5173`.
 
-`make seed-demo` creates the published demo logins from `DEMO_ADMIN_*` and `DEMO_BUYER_*` in `.env` and resets the catalogue to eight sample vehicles, one of them sold out. Rerunning it is the reset: the demo accounts and their passwords are kept, every active listing is soft-deleted by the demo administrator, and a fresh copy of the samples is added, so purchase records keep their listings. It refuses a demo email that already belongs to an account with a different role. Set the matching `VITE_DEMO_*` variables when building the SPA to list both logins under the sign-in form, each with a button that fills it in; with them unset, nothing is shown. Locally you don't set them: the SPA's dev server copies `DEMO_*` from the root `.env` into `VITE_DEMO_*`, so `npm run dev` lists exactly the logins `make seed-demo` created. Tests and production builds never read them from there.
+`make seed-demo` creates the published demo logins from `DEMO_ADMIN_*` and `DEMO_BUYER_*` in `.env` and resets the catalogue to eight sample vehicles, each with a photo, one of them sold out. Rerunning it is the reset: the demo accounts and their passwords are kept, every active listing is soft-deleted by the demo administrator, and a fresh copy of the samples is added, so purchase records keep their listings. It refuses a demo email that already belongs to an account with a different role. Set the matching `VITE_DEMO_*` variables when building the SPA to list both logins under the sign-in form, each with a button that fills it in; with them unset, nothing is shown. Locally you don't set them: the SPA's dev server copies `DEMO_*` from the root `.env` into `VITE_DEMO_*`, so `npm run dev` lists exactly the logins `make seed-demo` created. Tests and production builds never read them from there.
 
 Start the API with `cd backend && uv run uvicorn app.main:app --reload`, and the SPA with `cd frontend && npm run dev`. FastAPI's local OpenAPI documentation is available at `http://localhost:8000/docs`; `GET /health` verifies database readiness.
 
@@ -290,6 +291,7 @@ Project environment variables (production and preview):
 | `JWT_SECRET` | A separate random secret for production and for preview. |
 | `DB_POOL_SIZE` | `1`, because every function instance keeps its own pool. Prepared statements are always disabled, so queries are safe behind Neon's pooler. |
 | `VITE_DEMO_*` | The published demo logins shown on the sign-in page. |
+| `BLOB_READ_WRITE_TOKEN` | Added when the public `car-photos` Vercel Blob store (Singapore) was connected. Only uploads need it; the app just links the public photo URLs. |
 
 How code reaches this project and how its database is migrated are described under [Workflows](#workflows).
 
@@ -453,6 +455,8 @@ Login and registration rate limiting is deferred. An in-process limit would not 
 
 Listings are not required to be unique by make, model, category, or price. The system treats the listing ID as the only uniqueness guarantee because the kata intentionally does not model details such as VIN, year, or trim.
 
+A listing may carry one optional photo, `image_url`, added by migration 0009. It must be an absolute `http` or `https` URL of at most 2,048 characters and is stored exactly as given; anything else is a `422` on `image_url` with a fixed message that never repeats the input. The demo samples' photos are public-domain or CC0 files from Wikimedia Commons, which need no attribution. They were downloaded once and uploaded to the project's public Vercel Blob store, `car-photos`, as `cars/<make-model>.jpg`, so the demo does not depend on Wikimedia; no image files are kept in this repository. To add another, upload it with `vercel blob put <file> --access public --pathname cars/<name>.jpg` and use the URL it prints. Commons had no free photo of the Mahindra XUV700, so that sample is the XUV 3XO.
+
 A new listing starts with between 0 and 100,000 units. The cap catches typing mistakes such as an extra zero. Restock can still raise stock up to the database's integer limit.
 
 Vehicle search (`GET /api/vehicles/search`) applies every supplied filter together (AND). Its open choices were resolved as follows:
@@ -469,7 +473,7 @@ Vehicle search (`GET /api/vehicles/search`) applies every supplied filter togeth
 Vehicle update (`PUT /api/vehicles/{id}`) resolves its open choices as follows:
 
 - Only Administrators may update listings. The kata marks only delete and restock as admin-only, but its frontend section places update in the admin UI and the domain gives Standard Users no inventory-management authority, so a Standard User receives `403`.
-- The request is a full replacement: `make`, `model`, `category`, and `price` are all required and follow the same rules as creation.
+- The request is a full replacement: `make`, `model`, `category`, and `price` are all required and follow the same rules as creation. `image_url` is optional, so an update without it clears the photo.
 - `quantity` and any other unknown field return `422`; stock changes only through audited purchase and restock operations.
 - An unknown listing ID returns `404`; a malformed ID returns `422` for the `listing_id` field.
 - Success returns `200` with the updated listing. `updated_at` is refreshed on every update while `id`, `created_at`, and quantity are unchanged, so newest-first ordering is unaffected by edits.
@@ -506,8 +510,8 @@ The single-page app resolves the frontend's open choices as follows:
 - The access token is held in memory only (ADR 0003), so a browser refresh requires signing in again. Any `401` on a signed-in request ends the session, clears cached data, and returns to sign in with a notice.
 - The SPA calls relative `/api` paths. In development Vite proxies them to FastAPI on port 8000; `VITE_API_BASE_URL` can point elsewhere for split hosting.
 - The dashboard always uses the search endpoint and searches as you type. Text and price changes apply after a 300 ms pause, while a category choice, Enter, or Clear applies immediately. The applied filters and page number live in the URL, so back and forward restore them. Categories come from the API. Server validation errors appear beside the matching input.
-- Each vehicle card shows the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase opens a confirmation dialog that names the vehicle and its price; Cancel comes first and has focus, as in the delete dialog, and only "Confirm purchase" sends the request. The button is disabled at zero stock and while a purchase is in flight. A sold-out conflict closes the dialog, is announced, and refreshes the results.
-- Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, and the delete confirmation focuses Cancel first.
+- Each vehicle card shows the listing's photo across the top, cropped to 16:10 and lazy-loaded, or a "No photo available" placeholder of the same shape when it has none or the photo fails to load. Below it are the category, the INR price with Indian digit grouping (for example `₹12,50,000.00`), and the stock. Purchase opens a confirmation dialog that names the vehicle and its price; Cancel comes first and has focus, as in the delete dialog, and only "Confirm purchase" sends the request. The button is disabled at zero stock and while a purchase is in flight. A sold-out conflict closes the dialog, is announced, and refreshes the results.
+- Administrators see an Administrator badge, an Add vehicle button, and Edit, Restock, and Delete actions on each card. These open modal dialogs. Edit never sends quantity, the add and edit form has an optional Photo URL field (blank means no photo), and the delete confirmation focuses Cancel first.
 - The design is a clean light theme set in Inter: white cards with thin zinc borders on a soft grey page, near-black primary buttons, small coloured stock dots, and quiet text-style admin actions with Delete in red. Filters sit in one compact row of visually hidden but labelled inputs, focus rings stay visible, and the grid runs from one column on phones to three on wide screens.
 - Dialogs focus their first control, keep Tab and Shift+Tab inside themselves, close on Escape, and return focus to the control that opened them. If that control has left the page, for example the card of a listing that was just deleted, focus is not moved.
 - Component tests use Vitest, Testing Library with `user-event`, and MSW, which fails any test that makes an unexpected request. One Playwright journey exercises the real stack end to end.
@@ -565,3 +569,5 @@ To document the architecture and workflows, I asked Claude Code to explain in th
 To boost the project, I asked Claude Code to take the two quick wins from its ranked list: a purchase confirmation dialog and the dialog focus gap that this README listed as a known accessibility issue. It built them test-first on a branch, with a red and a green commit for each behavior: Tab stays inside a dialog, closing a dialog returns focus to its opener, Purchase asks for confirmation with the price, and the purchase dialog focuses Cancel first. The existing purchase tests and the Playwright journey gained the confirm step in the red commit, so they failed until the dialog existed. Before each green commit it ran both suites and the end-to-end journey and refreshed the test report. It then checked the dialog in the app's browser pane, confirming that focus wrapped from "Confirm purchase" back to Cancel and returned to the card's Purchase button on close.
 
 I also asked Claude Code to show the demo admin and buyer on the local sign-in page, as the Vercel deployment does. It found that the page only lists logins from `VITE_DEMO_*`, which only Vercel set, and that my local `.env` had no demo admin and an old buyer whose password no longer matched the database. It made the Vite dev server copy `DEMO_*` from the root `.env` into `VITE_DEMO_*`, so the seed and the sign-in page read one set of values, and left tests and production builds unchanged. It switched my local `.env` to the published Vercel demo logins after backing it up, ran `make seed-demo`, and signed in with both demo buttons in the browser pane to confirm.
+
+Next I asked Claude Code for photos on the vehicle cards. It added an optional `image_url` to listings test-first: a migration and the API field, full-replacement updates that clear it, and a check that only `http(s)` URLs are accepted, with an error message that never repeats the input. On the frontend it added the photo with a placeholder for missing or broken images, and a Photo URL field in the admin form. For the demo data it searched Wikimedia Commons and checked each candidate in the browser pane. When I said not to show or store credits, it pointed out that CC BY and CC BY-SA photos legally require them, so it switched every sample to a public-domain or CC0 photo instead and replaced the XUV700, which had none, with the XUV 3XO. It reverted the credits-link test with a new commit rather than rewriting history. I then asked for the photos to live in Vercel Blob storage. After I approved each step, it created the `car-photos` store, downloaded the eight photos, uploaded them, checked every copy by checksum, and pointed the seed at them, again test-first.
