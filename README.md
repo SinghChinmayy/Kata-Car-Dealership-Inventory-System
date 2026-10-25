@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml/badge.svg)](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml)
 
-A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first, and every change reaches `main` through a pull request that must pass lint, backend, frontend, and end-to-end checks ([how a change ships](#branch-protection-and-how-a-change-ships)).
+A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first, and every change reaches `main` through a pull request that must pass lint, backend, frontend, and end-to-end checks ([how a change ships](#branch-protection-and-how-a-change-ships)). [Architecture](#architecture) shows how the pieces fit together, and [Workflows](#workflows) follows a change from its first failing test to production.
+
+**Live demo: [car-dealership-inventory-umber.vercel.app](https://car-dealership-inventory-umber.vercel.app)**. The sign-in page lists a shared demo administrator and a demo buyer, each with a button that fills in the login. Anyone can use the demo administrator, so the catalogue may have been edited; it is reset to the sample vehicles from time to time.
 
 ## Screenshots
 
@@ -13,6 +15,241 @@ A full-stack inventory system for a car dealership. Administrators manage vehicl
 | Buyer search and purchase | Sign in | Phone layout |
 | --- | --- | --- |
 | ![Buyer filtering SUVs under ₹20,00,000 after buying a Tata Nexon](docs/screenshots/04-buyer-search-and-purchase.png) | ![Sign-in page](docs/screenshots/01-sign-in.png) | ![Phone layout with an out-of-stock listing and disabled Purchase button](docs/screenshots/05-mobile-out-of-stock.png) |
+
+## Architecture
+
+The system has three parts: a React single-page app (SPA), a FastAPI API, and a PostgreSQL database. In production, the SPA and the API share one Vercel origin, and the database is Neon Postgres.
+
+### System architecture
+
+Each layer only talks to the one below it. The SPA reaches the API through one fetch client, every API request passes the same middleware and dependencies, and all data lives in four PostgreSQL tables.
+
+```mermaid
+flowchart TB
+    subgraph spa["React SPA, frontend/src"]
+        direction TB
+        pages["Pages<br/>LoginPage, RegisterPage, DashboardPage"]
+        components["Components<br/>VehicleCard, SearchFilters, Pagination,<br/>VehicleFormDialog, RestockDialog, DeleteListingDialog"]
+        guards["Routing and session<br/>App.tsx routes, GuestOnly, RequireSession, AuthProvider"]
+        query["Server state<br/>TanStack Query cache, patchCachedListing"]
+        client["API client<br/>useApi adds the token, apiRequest builds ApiError"]
+        pages --> components
+        pages --> guards
+        pages --> query
+        components --> query
+        query --> client
+        guards --> client
+    end
+
+    subgraph api["FastAPI API, backend/app"]
+        direction TB
+        middleware["Middleware<br/>request ID, timing, JSON logs, crash handler, CORS"]
+        validation["Validation<br/>Pydantic request models"]
+        deps["Dependencies<br/>get_db_session, get_current_user, require_admin"]
+        routes["Routes<br/>auth, vehicles, search, purchase, restock"]
+        errors["Error handlers<br/>one error envelope for every failure"]
+        sql["Data access<br/>SQLAlchemy text() queries, one transaction per write"]
+        middleware --> validation --> deps --> routes --> sql
+        routes -.-> errors
+        validation -.-> errors
+        deps -.-> errors
+    end
+
+    subgraph db["PostgreSQL"]
+        tables[("user_accounts, vehicle_listings,<br/>purchases, stock_adjustments")]
+        alembic["Alembic migrations 0001 to 0008"]
+        alembic -.-> tables
+    end
+
+    client -- "HTTPS JSON, /api/*, Bearer token" --> middleware
+    sql -- "psycopg" --> tables
+```
+
+### Production deployment
+
+```mermaid
+flowchart LR
+    browser["Browser<br/>React SPA"]
+
+    subgraph vercel["Vercel project car-dealership-inventory, region sin1"]
+        static["Static files<br/>frontend/dist"]
+        fn["Python function<br/>api/index.py serves app.main:app"]
+    end
+
+    subgraph neon["Neon Postgres, ap-southeast-1"]
+        pooled["Pooled endpoint<br/>DATABASE_URL"]
+        direct["Direct endpoint<br/>DATABASE_URL_UNPOOLED"]
+        db[("Database")]
+    end
+
+    gha["GitHub Actions<br/>CI migrate job"]
+    laptop["Laptop with vercel link<br/>make vercel-migrate, make reset-demo"]
+
+    browser -- "pages and assets" --> static
+    browser -- "/api/* and /health, JSON with a Bearer token" --> fn
+    fn -- "SQLAlchemy and psycopg, pool of 1" --> pooled --> db
+    gha -- "alembic upgrade head" --> direct --> db
+    laptop --> direct
+```
+
+- `vercel.json` routes each request by path. `/api/*` and `/health` go to the Python function; files that exist in `frontend/dist` are served as they are; any other path falls back to `index.html`, so React Router handles `/login`, `/register`, and `/`.
+- The API only handles requests and never changes the schema. Alembic migrations and seeds connect through Neon's direct endpoint, from CI or from a laptop, because they must not go through the transaction pooler.
+
+### Local development setup
+
+Locally, Vite's development server takes Vercel's place, and PostgreSQL runs in Docker:
+
+```mermaid
+flowchart LR
+    browser["Browser<br/>localhost:5173"] --> vite["Vite dev server :5173<br/>serves the SPA, proxies /api"]
+    vite -- "/api/*" --> api["uvicorn app.main:app :8000<br/>OpenAPI docs at /docs"]
+    api --> pg[("PostgreSQL 16 in Docker :5432<br/>make db-up")]
+```
+
+Tests never touch the development database. The backend suite starts its own Testcontainers PostgreSQL, and the Playwright journey recreates a separate `dealership_e2e` database on the Docker server.
+
+### Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `backend/app/main.py` | The FastAPI app: request and response models, auth dependencies, error handlers, and every route |
+| `backend/app/core/` | Settings from the environment or `.env`, JSON logging with redaction, the request ID helper |
+| `backend/app/db/` | The SQLAlchemy engine and the per-request session |
+| `backend/app/scripts/` | The `seed_admin` and `seed_demo` commands |
+| `backend/alembic/versions/` | Migrations 0001 to 0008, the only way the schema changes |
+| `backend/tests/` | The pytest suite, run against a real PostgreSQL |
+| `api/index.py` | The Vercel entry point, which imports `app.main:app` from `backend/` |
+| `frontend/src/` | The SPA: `api/` (fetch client, query client, cache helpers), `auth/` (session and route guards), `pages/`, and `components/` |
+| `frontend/src/test/` | Vitest setup, MSW request handlers, and fixtures |
+| `frontend/e2e/` | The Playwright journey and the script that starts its API |
+| `docs/adr/` | Architecture decision records 0001 to 0013 |
+| `docs/api-error-contract.md` | The error envelope every failed request returns |
+| `.github/workflows/ci.yml` | The CI workflow, including the production migration |
+| `vercel.json`, `requirements.txt` | Vercel's build, routing, and Python dependencies |
+| `scripts/` | `vercel_db.sh` for commands against the deployed database, `test_report.py` for `make report` |
+
+### API endpoints
+
+| Endpoint | Access | Purpose |
+| --- | --- | --- |
+| `GET /health` | Public | Runs `SELECT 1`; returns `503` when the database is unreachable |
+| `POST /api/auth/register` | Public | Creates a Standard User; returns `409` for an email already registered |
+| `POST /api/auth/login` | Public | Returns a signed access token |
+| `GET /api/auth/me` | Signed in | Returns the current account and its role |
+| `GET /api/vehicles` | Signed in | Lists active listings, newest first, one page at a time |
+| `GET /api/vehicles/search` | Signed in | Filters listings; `q` is the typo-tolerant make and model search |
+| `GET /api/vehicles/categories` | Signed in | Returns the controlled category list |
+| `POST /api/vehicles` | Administrator | Creates a listing |
+| `PUT /api/vehicles/{id}` | Administrator | Replaces a listing's make, model, category, and price |
+| `DELETE /api/vehicles/{id}` | Administrator | Soft-deletes a listing |
+| `POST /api/vehicles/{id}/purchase` | Signed in | Buys one unit |
+| `POST /api/vehicles/{id}/restock` | Administrator | Adds units and records a Stock Adjustment |
+
+The rules behind each endpoint are listed under [Assumptions and additions](#assumptions-and-additions).
+
+### How the API handles a request
+
+Every request passes through the same layers, all set up in `create_app()` in `backend/app/main.py`:
+
+1. **Request context middleware.** It keeps a valid incoming `X-Request-ID` or generates a new one, times the request, and logs one `request.completed` event with the method, path, status, duration, and user ID. The ID is returned in the `X-Request-ID` header. An unhandled exception is logged with its traceback and answered here with a `500 internal_error`, so even a crash can be traced.
+2. **CORS.** It wraps the middleware above, so even a `500` carries CORS headers. On Vercel and through the Vite proxy, the SPA and API share an origin, so CORS only matters if they are hosted apart.
+3. **Validation.** Pydantic models check the path, query, and body. Update and restock bodies reject unknown fields, so `quantity` can never be edited directly.
+4. **Dependencies.** `get_db_session` opens a SQLAlchemy session for the request and closes it afterwards. `get_current_user` verifies the HS256 bearer token and loads the account named in its `sub` claim, so a role change applies from the next request. `require_admin` then checks for the Administrator role.
+5. **Handler.** Routes run explicit SQL through SQLAlchemy's `text()`. Every stock change is one conditional `UPDATE ... RETURNING`, and its audit row (a purchase or a stock adjustment) is inserted in the same transaction before the commit.
+6. **Errors.** Domain errors, validation errors, and HTTP errors (including paths that match no route) all go through `error_response`. Each produces the envelope in [docs/api-error-contract.md](docs/api-error-contract.md): `code`, `message`, `request_id`, and, for validation errors, `fields`.
+
+### Data model
+
+```mermaid
+erDiagram
+    user_accounts ||--o{ purchases : "buys"
+    user_accounts ||--o{ stock_adjustments : "restocks"
+    user_accounts |o--o{ vehicle_listings : "soft-deletes"
+    vehicle_listings ||--o{ purchases : "is sold in"
+    vehicle_listings ||--o{ stock_adjustments : "is restocked in"
+
+    user_accounts {
+        uuid id PK
+        string email UK
+        string password_hash
+        string role
+    }
+    vehicle_listings {
+        uuid id PK
+        string make
+        string model
+        string category
+        numeric price
+        int quantity
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at
+        uuid deleted_by FK
+    }
+    purchases {
+        uuid id PK
+        uuid listing_id FK
+        uuid purchaser_id FK
+        numeric price
+        string make
+        string model
+        string category
+        timestamptz purchased_at
+    }
+    stock_adjustments {
+        uuid id PK
+        uuid listing_id FK
+        uuid administrator_id FK
+        int quantity
+        timestamptz adjusted_at
+    }
+```
+
+- Every primary key is a UUID (ADR 0013), and every foreign key is `ON DELETE RESTRICT`, so no account or listing with history can be removed.
+- Listings are never hard-deleted. `deleted_at` and `deleted_by` are set together, and every query for active listings filters on `deleted_at IS NULL`.
+- A purchase copies the listing's price, make, model, and category at the time of sale, so later edits never change what was sold.
+- Prices are `NUMERIC(14, 2)` in INR (ADR 0010). Migration 0008 enables `pg_trgm` for the fuzzy search.
+
+### How the SPA works
+
+- `main.tsx` nests the providers: the TanStack Query client, then React Router, then `AuthProvider`, then `App`.
+- `App.tsx` wraps `/login` and `/register` in `GuestOnly` and the `/` dashboard in `RequireSession`; any other path redirects to `/`.
+- `AuthProvider` signs in with `POST /api/auth/login` followed by `GET /api/auth/me`, and keeps the token and account in React state only (ADR 0003). Registering creates the account and then signs in. Logging out clears the query cache, so one account's results never show to the next.
+- `useApi` adds the bearer token to every request. A `401` on a signed-in request ends the session and shows a notice, and the route guards return to sign in.
+- `DashboardPage` reads the filters and page number from the URL and fetches `GET /api/vehicles/search` under the query key `["vehicles", "search", filters, page]`. Categories are fetched once per session. After a purchase or restock, the listing returned by the API replaces the old copy in every cached page; after a create, edit, delete, or sold-out conflict, the search is fetched again.
+- `apiRequest` turns the error envelope into an `ApiError`. Forms show field errors beside the matching input and anything else in a banner. Client errors (`4xx`) are never retried; server and network errors get one retry.
+
+### A purchase, end to end
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Buyer
+    participant SPA as React SPA
+    participant Vercel
+    participant API as FastAPI function
+    participant DB as Neon Postgres
+
+    Buyer->>SPA: Click Purchase
+    SPA->>Vercel: POST /api/vehicles/{id}/purchase with a Bearer token
+    Vercel->>API: Rewrite to api/index.py, keeping the original path
+    API->>API: Assign the request ID, verify the token
+    API->>DB: Load the account named in the token
+    API->>DB: UPDATE vehicle_listings SET quantity = quantity - 1<br/>WHERE id = :id AND quantity > 0 AND deleted_at IS NULL<br/>RETURNING the listing
+    alt A row came back
+        API->>DB: INSERT INTO purchases with price, make, model and category copies
+        API->>DB: COMMIT
+        API-->>SPA: 200 with the updated listing
+        SPA->>SPA: Update the cached card and show a toast
+    else No row and the listing is active
+        API-->>SPA: 409 out_of_stock
+        SPA->>Vercel: Fetch the search results again
+    else No row and the listing is missing or deleted
+        API-->>SPA: 404 not_found
+    end
+```
+
+The conditional `UPDATE` is what prevents overselling. PostgreSQL locks the row, so concurrent buyers queue, and each one checks `quantity > 0` again after the previous one commits. `test_concurrent_purchases_never_oversell` in `backend/tests/test_vehicles.py` fires 20 purchases at a stock of 5 and expects exactly 5 sales.
 
 ## Local development
 
@@ -38,7 +275,7 @@ Common commands are exposed through the root `Makefile`: `make migrate`, `make t
 
 ## Deployment
 
-The app runs on Vercel as one project, `car-dealership-inventory`, with its database on Neon Postgres (added through the Vercel Marketplace). Both are in Singapore (`sin1` / `ap-southeast-1`), the closest Neon region to users in India. The plan and the reasoning behind it are in [plan/vercel_deployment.md](plan/vercel_deployment.md).
+The app runs at [car-dealership-inventory-umber.vercel.app](https://car-dealership-inventory-umber.vercel.app), on Vercel as one project, `car-dealership-inventory`, with its database on Neon Postgres (added through the Vercel Marketplace). Both are in Singapore (`sin1` / `ap-southeast-1`), the closest Neon region to users in India. The plan and the reasoning behind it are in [plan/vercel_deployment.md](plan/vercel_deployment.md).
 
 - The SPA is built from `frontend/` and served as static files; any path that is not a file falls back to `index.html`.
 - `/api/*` and `/health` are rewritten to one Python function, `api/index.py`, which puts `backend/` on the import path and serves `app.main:app` with its original paths. Because the SPA and API share an origin, no CORS or `VITE_API_BASE_URL` is needed.
@@ -54,20 +291,115 @@ Project environment variables (production and preview):
 | `DB_POOL_SIZE` | `1`, because every function instance keeps its own pool. Prepared statements are always disabled, so queries are safe behind Neon's pooler. |
 | `VITE_DEMO_*` | The published demo logins shown on the sign-in page. |
 
-Continuous integration and deployment: the [CI](.github/workflows/ci.yml) GitHub Action runs on every pull request and every push to `main`, and can also be started by hand. Four jobs check the code:
+How code reaches this project and how its database is migrated are described under [Workflows](#workflows).
 
-| Job | What it runs |
+## Workflows
+
+Four workflows move code and data from a developer's machine to production:
+
+| Workflow | Started by | Runs on | Produces |
+| --- | --- | --- | --- |
+| [Development](#development-workflow) | The developer, once per behaviour | The developer's machine | Red, green, and refactor commits on a branch |
+| [CI](#ci-workflow) | A pull request, a push to `main`, or a manual run | GitHub Actions | Four required checks; on `main`, a production migration |
+| [Deployment](#deployment-workflow) | A pull request or a push to `main` | Vercel's Git integration | A preview or production deployment |
+| [Database operations](#database-operations) | `make vercel-migrate` or `make reset-demo` | The developer's machine, linked to Vercel | A migrated database or a reset demo catalogue |
+
+The path of one change, from its first failing test to production:
+
+```mermaid
+flowchart TD
+    branch["Branch from main"] --> tdd["Red, green, and refactor commits"]
+    tdd --> local["Local checks<br/>make lint, test-backend, test-frontend, e2e, report"]
+    local --> pr["Push the branch and open a pull request"]
+    pr --> ci_pr["CI on the pull request<br/>Lint, Backend tests, Frontend tests and build, End-to-end journey"]
+    pr --> preview["Vercel preview deployment"]
+    ci_pr --> gate{"All four checks pass,<br/>branch up to date with main,<br/>every conversation resolved?"}
+    gate -- "No: push a fix" --> tdd
+    gate -- "Yes" --> merge["Rebase and merge into main"]
+    merge --> prod["Vercel production deployment"]
+    merge --> ci_main["CI runs again on main"]
+    ci_main --> migrate["Migrate production database<br/>alembic upgrade head on Neon"]
+```
+
+### Development workflow
+
+Application behaviour is built test-first, following the repository skill [`tdd-red-green-refactor`](.agents/skills/tdd-red-green-refactor/SKILL.md). Each step is its own commit, so the history shows every test failing before the code that makes it pass:
+
+1. **Red.** Write one failing test for one behaviour and check that it fails on an assertion, not on an import error. Commit it as `test: <behaviour> (red)`.
+2. **Green.** Write the smallest code that passes. Commit it as `feat: <behaviour>` or `fix: <behaviour>`, together with any migration the code needs.
+3. **Refactor.** Optionally improve the structure without changing behaviour, with every test still passing. Commit it as `refactor: <what>`.
+
+Run the full suite before every green and refactor commit, and refresh [docs/test-report.md](docs/test-report.md) with `make report`. Setup work such as configuration is committed as `chore:` rather than as a cycle. History is never squashed or rewritten, which is why `main` accepts only rebase merges.
+
+Before pushing, the same checks CI runs can be run locally:
+
+| Command | Matching CI job |
 | --- | --- |
-| Lint | `make lint`: Ruff check and format, ESLint, Prettier |
-| Backend tests | pytest against a Testcontainers PostgreSQL, failing below 95% coverage; JUnit and coverage XML are kept as run artifacts |
-| Frontend tests and build | Vitest, then `npm run build`, the same type-check and bundle Vercel runs |
-| End-to-end journey | The Playwright journey against a PostgreSQL service container, after both test jobs pass; its report and traces are kept when it fails |
+| `make lint` | Lint |
+| `make test-backend` (Docker must be running) | Backend tests; CI also fails below 95% coverage |
+| `make test-frontend`, then `cd frontend && npm run build` | Frontend tests and build |
+| `make e2e` | End-to-end journey |
 
-On a push to `main`, once all four pass, a fifth job runs `alembic upgrade head` against Neon's direct URL, taken from the repository secret `DATABASE_URL_UNPOOLED`. It runs on every push, since at head the upgrade changes nothing, and a concurrency lock queues it so two migrations never run at once. Runs on `main` are never cancelled; a newer commit on a pull request cancels that pull request's older run.
+Run `make requirements` whenever `backend/uv.lock` changes, since Vercel installs the API from `requirements.txt` and a backend test fails until the two match. A new migration must keep working with the code that is still live, because production deploys and migrates at the same time (see [Deployment workflow](#deployment-workflow)): add columns and tables first, and remove old ones in a later release.
 
-The Vercel project is connected to this GitHub repository, so every push to `main` deploys to production and every pull request gets a preview deployment. Vercel does not wait for CI, so `main` is protected with these checks required (see below): only code that passed CI reaches `main` and production. The deploy and the migration run side by side, so a migration must keep working with the code that is still live: add columns or tables first, and remove old ones in a later release. Preview deployments use the production database, so a pull request with a new migration will run its preview against the old schema until it is merged.
+### CI workflow
 
-Migrations and seeds can also run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. Production and preview deployments currently share one database.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main`, and when started by hand. Lint and the two test jobs start at once; the end-to-end journey waits for both test jobs; the migration waits for all four and runs only on `main`.
+
+```mermaid
+flowchart LR
+    trigger["Pull request, push to main,<br/>or manual run"] --> lint["Lint"]
+    trigger --> backend["Backend tests"]
+    trigger --> frontend["Frontend tests and build"]
+    backend --> e2e["End-to-end journey"]
+    frontend --> e2e
+    lint --> migrate["Migrate production database<br/>main only"]
+    backend --> migrate
+    frontend --> migrate
+    e2e --> migrate
+```
+
+| Job | Waits for | What it does |
+| --- | --- | --- |
+| Lint | Nothing | Installs Python 3.12 with uv and Node 24 (the version in Vercel's build image), then runs `make lint`: Ruff check and format, ESLint, and Prettier. |
+| Backend tests | Nothing | Runs pytest against a Testcontainers PostgreSQL started through the runner's Docker, and fails below 95% coverage. JUnit and coverage XML are kept for 14 days as the `backend-test-results` artifact. |
+| Frontend tests and build | Nothing | Runs Vitest, then `npm run build` (`tsc -b && vite build`), the same type-check and bundle Vercel runs, so a broken build fails here first. |
+| End-to-end journey | Backend tests, Frontend tests and build | Starts a PostgreSQL 16 service container on port 5432 with the same credentials as `make db-up`, installs Chromium, and runs `npm run e2e`. Playwright starts the API, which recreates its own `dealership_e2e` database, and the Vite server. If the journey fails, its report and traces are kept for 7 days as the `playwright-report` artifact. |
+| Migrate production database | All four | Runs only for a push to `main` or a manual run on `main`. It installs the backend without development dependencies and runs `alembic upgrade head`, then `alembic current`, against Neon's direct URL from the repository secret `DATABASE_URL_UNPOOLED`. It fails if that secret is missing. Because the settings refuse to load without `JWT_SECRET`, it generates a throwaway one; migrations sign no tokens. |
+
+- **Concurrency.** Runs are grouped by branch. A newer commit on a pull request cancels that pull request's older run, but runs on `main` are never cancelled, so a migration is never stopped halfway. The migration job also holds a `migrate-production` lock, so a second migration queues instead of running at the same time.
+- **Every push migrates.** The migration runs on every push to `main`, not only when a migration file changes; when the database is already at head, `alembic upgrade head` changes nothing.
+- **Permissions.** The workflow token can only read the repository. `DATABASE_URL_UNPOOLED` is the only secret, and only the migration job uses it.
+
+### Deployment workflow
+
+The Vercel project is connected to this GitHub repository. Every pull request gets a preview deployment, and every push to `main` deploys to production. Each build runs `npm ci` and `npm run build` in `frontend/`, publishes `frontend/dist`, and packages `api/index.py` as a Python function with the dependencies in `requirements.txt` (see [Deployment](#deployment)).
+
+Vercel does not wait for CI. When a merge reaches `main`, the production deployment and the CI run, including its migration, run side by side:
+
+```mermaid
+sequenceDiagram
+    participant Main as GitHub main
+    participant Vercel
+    participant CI as GitHub Actions CI
+    participant Neon as Neon Postgres
+
+    Main->>Vercel: Push event
+    Main->>CI: Push event
+    par Production deployment
+        Vercel->>Vercel: Build the SPA and the API function
+        Vercel->>Vercel: Promote the build to production
+    and CI and migration
+        CI->>CI: Lint, backend, frontend, and end-to-end jobs
+        CI->>Neon: alembic upgrade head over the direct URL
+    end
+```
+
+This has three consequences:
+
+- **Branch protection is the gate.** Because Vercel deploys whatever reaches `main`, the required checks below are what keep failing code out of production.
+- **Migrations must be backward compatible.** Either side can finish first, so for a short time new code may run against the old schema, or old code against the new one.
+- **Previews share the production database.** A pull request that adds a migration runs its preview against the old schema until it is merged, and anything done in a preview changes production data.
 
 ### Branch protection and how a change ships
 
@@ -86,6 +418,10 @@ A change ships in four steps:
 2. Push the branch and open a pull request. CI runs the four checks, and Vercel builds a preview deployment.
 3. When all four checks pass and every conversation is resolved, rebase and merge.
 4. The merge pushes to `main`: Vercel deploys it to production, while CI runs again and, once its checks pass, applies any new migrations to Neon.
+
+### Database operations
+
+Migrations and seeds can also run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. Production and preview deployments currently share one database.
 
 ## Test report
 
@@ -223,3 +559,5 @@ For continuous deployment, I asked Claude Code how deploys worked. It checked th
 I then asked Claude Code to analyse the codebase and suggest features ranked by importance. It put a CI test pipeline first: the only workflow was the migration, which would have changed the production database on a push to `main` even if the tests were failing. Before writing anything, I asked it to explain the plan. It then wrote one CI workflow with lint, backend, frontend, and end-to-end jobs, and moved the migration in as a final job that runs only on `main` after all four pass. It reused what the project already had: `make lint`, the Testcontainers backend suite, the build Vercel runs, and a PostgreSQL service with the credentials the Playwright journey expects. It ran each job's commands locally before calling the workflow done. It also pointed out that Vercel deploys without waiting for CI, so protecting `main` with required checks is the step that actually keeps failing code out of production, and left that setting to me.
 
 For branch protection, I asked Claude Code what to enter in each field of GitHub's ruleset form, then created the ruleset myself. It recommended an empty bypass list, so the rules apply to me too; zero required approvals, because nobody else can approve my pull requests; and rebase-only merging, because squash merges would hide the red and green commits. When I asked it to check the saved ruleset through the GitHub API, it found that two settings had not been saved: the required-checks list was empty, so failing CI would not have blocked a merge, and squash merging was still allowed. With my go-ahead, it updated the ruleset through the API, changing only those two settings, and read it back to confirm.
+
+To document the architecture and workflows, I asked Claude Code to explain in this README how the system is built and how a change travels to production, then to add an architecture diagram and a link to the live demo. It read the backend, the frontend, `vercel.json`, the CI workflow, and the migrations first, so each diagram matches the code: a layered system diagram, the production and local setups, the data model, a purchase traced end to end, and the CI job graph next to the Vercel deployment it races. Before editing, it noticed that another session was committing a feature on the branch checked out in my working copy, so it made these changes on a separate branch from `main` to keep the documentation out of that feature's commits.
