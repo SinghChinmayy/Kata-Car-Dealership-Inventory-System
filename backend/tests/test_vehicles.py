@@ -942,6 +942,34 @@ def test_my_purchases_lists_the_callers_purchases_newest_first(
     assert anonymous_response.status_code == 401
 
 
+def test_my_purchases_pages_like_the_catalogue(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Purchase history pages with the listing endpoints' page, page_size cap, and page limit."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        admin = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        nexon = client.post("/api/vehicles", headers=admin, json={**NEXON, "quantity": 2}).json()
+        city = client.post("/api/vehicles", headers=admin, json={**CITY, "quantity": 1}).json()
+        for listing in (nexon, nexon, city):
+            client.post(f"/api/vehicles/{listing['id']}/purchase", headers=admin)
+        second_page = client.get(
+            "/api/purchases/me", headers=admin, params={"page": 2, "page_size": 2}
+        )
+        oversized = client.get("/api/purchases/me", headers=admin, params={"page_size": 500})
+        too_far = client.get("/api/purchases/me", headers=admin, params={"page": 10_001})
+
+    assert second_page.status_code == 200
+    payload = second_page.json()
+    assert (payload.get("total"), payload.get("page"), payload.get("page_size")) == (3, 2, 2)
+    assert [item["model"] for item in payload["items"]] == ["Nexon"]
+    assert oversized.json()["page_size"] == 100
+    assert len(oversized.json()["items"]) == 3
+    assert too_far.status_code == 422
+    assert list(too_far.json()["error"]["fields"]) == ["page"]
+
+
 def test_administrator_restock_adds_units_and_returns_the_updated_listing(
     postgres_url: str, postgres_engine, monkeypatch
 ) -> None:
