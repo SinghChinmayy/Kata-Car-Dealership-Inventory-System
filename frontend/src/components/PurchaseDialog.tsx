@@ -1,7 +1,7 @@
 import type { VehicleListing } from "../api/types";
 import { formatPrice } from "../format";
 import { Modal } from "./Modal";
-import { primaryButton } from "./buttonStyles";
+import { primaryButton, secondaryButton } from "./buttonStyles";
 
 type Props = {
   listing: VehicleListing;
@@ -10,7 +10,10 @@ type Props = {
   onClose: () => void;
 };
 
-/** A purchase is final, so the buyer confirms the price before the request is sent. */
+/**
+ * A purchase is final, so the buyer confirms the price before the request is sent.
+ * Cancel comes first so it receives focus: buying is never the default action.
+ */
 export function PurchaseDialog({
   listing,
   purchasing,
@@ -27,6 +30,9 @@ export function PurchaseDialog({
         .
       </p>
       <div className="mt-6 flex justify-end gap-2">
+        <button type="button" className={secondaryButton} onClick={onClose}>
+          Cancel
+        </button>
         <button
           type="button"
           className={primaryButton}
