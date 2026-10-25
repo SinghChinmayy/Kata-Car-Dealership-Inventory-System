@@ -21,6 +21,9 @@ def get_engine() -> Engine:
             pool_pre_ping=True,
             pool_size=settings.db_pool_size,
             max_overflow=5,
+            # Transaction poolers (Neon on Vercel) may run a prepared statement on another
+            # server connection, so psycopg must never prepare them.
+            connect_args={"prepare_threshold": None},
         )
     return _engine
 
