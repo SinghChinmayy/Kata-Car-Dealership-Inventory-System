@@ -191,3 +191,32 @@ def test_seed_demo_photos_come_from_the_project_blob_store(
 
     store = "https://a4djhfyric3en0ge.public.blob.vercel-storage.com/cars/"
     assert all(photo.startswith(store) for photo in sample_photos(postgres_engine))
+
+
+def test_seed_demo_gives_every_sample_a_full_spec_sheet(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """The details dialog has a full spec sheet to show for every sample car."""
+    configure(monkeypatch, postgres_url)
+    from app.scripts.seed_demo import main
+
+    main()
+
+    with postgres_engine.connect() as connection:
+        samples = (
+            connection.execute(
+                text(
+                    "SELECT year, colour, description, fuel_type, engine_cc, battery_kwh, "
+                    "power_bhp, transmission, seats, mileage_kmpl, range_km "
+                    "FROM vehicle_listings WHERE deleted_at IS NULL"
+                )
+            )
+            .mappings()
+            .all()
+        )
+    assert samples
+    for sample in samples:
+        required = ("year", "colour", "description", "fuel_type", "power_bhp", "transmission")
+        assert all(sample[field] is not None for field in (*required, "seats"))
+        assert sample["engine_cc"] or sample["battery_kwh"], "engine size or battery"
+        assert sample["mileage_kmpl"] or sample["range_km"], "mileage or range"
