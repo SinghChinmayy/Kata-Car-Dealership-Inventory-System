@@ -178,3 +178,16 @@ def test_seed_demo_gives_every_sample_its_own_photo(
     assert photos
     assert all(photo and photo.startswith("https://") for photo in photos)
     assert len(set(photos)) == len(photos)
+
+
+def test_seed_demo_photos_come_from_the_project_blob_store(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """The demo serves its own copies from Vercel Blob, so no third-party site can break it."""
+    configure(monkeypatch, postgres_url)
+    from app.scripts.seed_demo import main
+
+    main()
+
+    store = "https://a4djhfyric3en0ge.public.blob.vercel-storage.com/cars/"
+    assert all(photo.startswith(store) for photo in sample_photos(postgres_engine))
