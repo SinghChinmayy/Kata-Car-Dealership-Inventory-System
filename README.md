@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml/badge.svg)](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml)
 
-A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first.
+A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first, and every change reaches `main` through a pull request that must pass lint, backend, frontend, and end-to-end checks ([how a change ships](#branch-protection-and-how-a-change-ships)).
 
 ## Screenshots
 
@@ -65,9 +65,27 @@ Continuous integration and deployment: the [CI](.github/workflows/ci.yml) GitHub
 
 On a push to `main`, once all four pass, a fifth job runs `alembic upgrade head` against Neon's direct URL, taken from the repository secret `DATABASE_URL_UNPOOLED`. It runs on every push, since at head the upgrade changes nothing, and a concurrency lock queues it so two migrations never run at once. Runs on `main` are never cancelled; a newer commit on a pull request cancels that pull request's older run.
 
-The Vercel project is connected to this GitHub repository, so every push to `main` deploys to production and every pull request gets a preview deployment. Vercel does not wait for CI, so `main` should be protected with these checks required: then only code that passed CI reaches `main` and production. The deploy and the migration run side by side, so a migration must keep working with the code that is still live: add columns or tables first, and remove old ones in a later release. Preview deployments use the production database, so a pull request with a new migration will run its preview against the old schema until it is merged.
+The Vercel project is connected to this GitHub repository, so every push to `main` deploys to production and every pull request gets a preview deployment. Vercel does not wait for CI, so `main` is protected with these checks required (see below): only code that passed CI reaches `main` and production. The deploy and the migration run side by side, so a migration must keep working with the code that is still live: add columns or tables first, and remove old ones in a later release. Preview deployments use the production database, so a pull request with a new migration will run its preview against the old schema until it is merged.
 
 Migrations and seeds can also run from a laptop with a linked project (`vercel link`), never during the Vercel build. `make vercel-migrate` runs `alembic upgrade head` against Neon's direct URL, and `make reset-demo` runs the demo seed with the logins taken from the project's `VITE_DEMO_*` variables. Both use `scripts/vercel_db.sh`, which pulls the project's variables into a temporary file and deletes it afterwards. The demo administrator is public, so anyone can edit or delete listings; `make reset-demo` puts the sample catalogue back. Production and preview deployments currently share one database.
+
+### Branch protection and how a change ships
+
+`main` is protected by a GitHub ruleset, `protect-main`. Its bypass list is empty, so the rules apply to everyone, administrators included.
+
+| Rule | Setting |
+| --- | --- |
+| Pull request required | Direct pushes to `main` are rejected. No approving review is required, because this is a one-person repository, but every review conversation must be resolved before merging. |
+| Required status checks | `Lint`, `Backend tests`, `Frontend tests and build`, and `End-to-end journey` must pass, reported by GitHub Actions only, on a branch that is up to date with `main`. |
+| Merge method | Rebase only, with linear history. A squash merge would fold each failing-test commit and the implementation that made it pass into one commit, hiding the Red-Green-Refactor history. |
+| Force pushes and deletion | Blocked. |
+
+A change ships in four steps:
+
+1. Work on a branch, writing the failing test first.
+2. Push the branch and open a pull request. CI runs the four checks, and Vercel builds a preview deployment.
+3. When all four checks pass and every conversation is resolved, rebase and merge.
+4. The merge pushes to `main`: Vercel deploys it to production, while CI runs again and, once its checks pass, applies any new migrations to Neon.
 
 ## Test report
 
@@ -203,3 +221,5 @@ To deploy, I had Claude Code plan a Vercel setup and then build it one step at a
 For continuous deployment, I asked Claude Code how deploys worked. It checked the Vercel project and found it was not connected to Git and there were no GitHub Actions, so every release so far had been a manual `vercel deploy --prod`. It then wrote a GitHub Action that applies Alembic migrations to Neon's direct URL on every push to `main` that changes `backend/`, with a concurrency lock so two migrations never run at once. It pointed out that Vercel's Git deploy and the migration run side by side, so migrations must stay backward compatible, and that previews share the production database. Connecting the repository in Vercel and storing the database URL as a GitHub secret were left to me, because they need my account settings and a secret.
 
 I then asked Claude Code to analyse the codebase and suggest features ranked by importance. It put a CI test pipeline first: the only workflow was the migration, which would have changed the production database on a push to `main` even if the tests were failing. Before writing anything, I asked it to explain the plan. It then wrote one CI workflow with lint, backend, frontend, and end-to-end jobs, and moved the migration in as a final job that runs only on `main` after all four pass. It reused what the project already had: `make lint`, the Testcontainers backend suite, the build Vercel runs, and a PostgreSQL service with the credentials the Playwright journey expects. It ran each job's commands locally before calling the workflow done. It also pointed out that Vercel deploys without waiting for CI, so protecting `main` with required checks is the step that actually keeps failing code out of production, and left that setting to me.
+
+For branch protection, I asked Claude Code what to enter in each field of GitHub's ruleset form, then created the ruleset myself. It recommended an empty bypass list, so the rules apply to me too; zero required approvals, because nobody else can approve my pull requests; and rebase-only merging, because squash merges would hide the red and green commits. When I asked it to check the saved ruleset through the GitHub API, it found that two settings had not been saved: the required-checks list was empty, so failing CI would not have blocked a merge, and squash merging was still allowed. With my go-ahead, it updated the ruleset through the API, changing only those two settings, and read it back to confirm.
