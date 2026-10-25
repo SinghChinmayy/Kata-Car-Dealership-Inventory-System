@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     jwt_access_token_minutes: int = Field(default=60, ge=1)
     initial_admin_email: str = ""
     initial_admin_password: str = ""
+    # Published demo logins (shown on the sign-in page); never reuse real credentials here.
+    demo_admin_email: str = ""
+    demo_admin_password: str = ""
+    demo_buyer_email: str = ""
+    demo_buyer_password: str = ""
     # NoDecode hands the raw comma-separated string to split_origins instead of JSON-decoding it.
     allowed_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"]

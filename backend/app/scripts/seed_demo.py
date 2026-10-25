@@ -1,6 +1,36 @@
+"""Create the published demo Administrator and buyer from DEMO_* settings."""
+
+from uuid import uuid4
+
+from sqlalchemy import text
+
+from app.core.config import get_settings
+from app.db.session import get_session_factory
+from app.main import RegisterRequest, password_hasher
+
+
 def main() -> None:
-    """Placeholder for the future idempotent demo-listing seed command."""
-    raise SystemExit("The demo seed command is added with vehicle listing models.")
+    settings = get_settings()
+    demo_accounts = [
+        (settings.demo_admin_email, settings.demo_admin_password, "administrator"),
+        (settings.demo_buyer_email, settings.demo_buyer_password, "standard_user"),
+    ]
+    with get_session_factory()() as session:
+        for email, password, role in demo_accounts:
+            credentials = RegisterRequest(email=email, password=password)
+            session.execute(
+                text(
+                    "INSERT INTO user_accounts (id, email, password_hash, role) "
+                    "VALUES (:id, :email, :password_hash, :role)"
+                ),
+                {
+                    "id": uuid4(),
+                    "email": credentials.email.strip().lower(),
+                    "password_hash": password_hasher.hash(credentials.password),
+                    "role": role,
+                },
+            )
+        session.commit()
 
 
 if __name__ == "__main__":
