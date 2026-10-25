@@ -1266,3 +1266,26 @@ def test_search_q_is_limited_to_100_characters(
 
     assert response.status_code == 422
     assert list(response.json()["error"]["fields"]) == ["q"]
+
+
+PHOTO_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Car.jpg/800px-Car.jpg"
+
+
+def test_a_listing_can_carry_an_optional_photo_url(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Creation stores a photo URL when one is given; listings without one show null."""
+    use_test_database(postgres_url, monkeypatch)
+
+    with TestClient(create_app()) as client:
+        headers = login_headers(client, postgres_engine, "admin@example.com", administrator=True)
+        with_photo = client.post(
+            "/api/vehicles", headers=headers, json={**NEXON, "quantity": 1, "image_url": PHOTO_URL}
+        )
+        without_photo = client.post("/api/vehicles", headers=headers, json={**NEXON, "quantity": 1})
+        listed = client.get("/api/vehicles", headers=headers)
+
+    assert with_photo.status_code == 201
+    assert with_photo.json().get("image_url") == PHOTO_URL
+    assert without_photo.json().get("image_url") is None
+    assert [item.get("image_url") for item in listed.json()["items"]] == [None, PHOTO_URL]
