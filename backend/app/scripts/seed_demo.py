@@ -18,6 +18,13 @@ def main() -> None:
     with get_session_factory()() as session:
         for email, password, role in demo_accounts:
             credentials = RegisterRequest(email=email, password=password)
+            existing = session.execute(
+                text("SELECT role FROM user_accounts WHERE email = :email"),
+                {"email": credentials.email.strip().lower()},
+            ).scalar_one_or_none()
+            # Rerunning is the reset: existing demo accounts keep their passwords.
+            if existing is not None:
+                continue
             session.execute(
                 text(
                     "INSERT INTO user_accounts (id, email, password_hash, role) "
