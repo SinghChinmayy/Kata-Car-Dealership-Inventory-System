@@ -40,7 +40,7 @@ Use a separate DB session per request and a pool larger than the concurrency cou
 
 ## AI usage requirements
 
-- Every commit where an AI tool helped (including red commits with AI-written tests) ends with two blank lines then `Co-authored-by: <AI Tool Name> <AI@users.noreply.github.com>`. Add a short body line saying what the AI did and what was done manually.
+- Every commit where an AI tool helped (including red commits with AI-written tests) ends with two blank lines then `Co-authored-by: <AI Tool Name> <tool address>` (Claude: `Claude <noreply@anthropic.com>`, Codex: `OpenAI Codex <codex@users.noreply.github.com>`; never a made-up `@users.noreply.github.com` address, GitHub credits the real account with that username). Add a short body line saying what the AI did and what was done manually.
 - Keep raw, unedited chat logs or public chat links in a root `PROMPTS.md`. No summaries.
 - README needs a detailed "My AI Usage" section: tools used, how they were used, and a reflection on the impact.
 
@@ -59,5 +59,5 @@ feat: return 409 on duplicate email
 refactor: extract email normalization helper
 
 
-Co-authored-by: AI Tool Name <AI@users.noreply.github.com>
+Co-authored-by: Claude <noreply@anthropic.com>
 ```

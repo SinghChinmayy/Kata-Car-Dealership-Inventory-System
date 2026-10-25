@@ -2,6 +2,8 @@
 
 For every commit where you used an AI tool (for generating boilerplate, writing tests, debugging, etc.), add the AI as a co-author. At the end of the commit message, add two empty lines followed by a `Co-authored-by` trailer naming the AI tool.
 
+Use the tool's own address in the trailer (for example `Claude <noreply@anthropic.com>` or `OpenAI Codex <codex@users.noreply.github.com>`). Never use a made-up `<name>@users.noreply.github.com` address: GitHub credits whichever real account owns that username.
+
 Example commit message:
 
 ```text
@@ -11,7 +13,7 @@ Used an AI assistant to generate the initial boilerplate for the
 controller and service, then manually added validation logic.
 
 
-Co-authored-by: AI Tool Name <AI@users.noreply.github.com>
+Co-authored-by: Claude <noreply@anthropic.com>
 ```
 
 # README Documentation
