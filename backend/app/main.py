@@ -28,7 +28,7 @@ from app.errors import DomainError
 
 logger = logging.getLogger("app")
 # Columns that make up VehicleListingOut, in every SELECT and RETURNING clause.
-LISTING_COLUMNS = "id, make, model, category, price, quantity, created_at, updated_at"
+LISTING_COLUMNS = "id, make, model, category, price, quantity, image_url, created_at, updated_at"
 # Stock Quantity is a PostgreSQL INTEGER; restocks may not push it past this.
 MAX_STOCK_QUANTITY = 2_147_483_647
 MAX_INITIAL_QUANTITY = 100_000
@@ -89,6 +89,7 @@ class VehicleCatalogueFields(BaseModel):
 class CreateVehicleRequest(VehicleCatalogueFields):
     # A business cap that catches typos; restock may grow stock up to MAX_STOCK_QUANTITY.
     quantity: int = Field(ge=0, le=MAX_INITIAL_QUANTITY)
+    image_url: Optional[str] = Field(default=None, max_length=2048)
 
 
 class UpdateVehicleRequest(VehicleCatalogueFields):
@@ -109,6 +110,7 @@ class VehicleListingOut(BaseModel):
     category: str
     price: Decimal
     quantity: int
+    image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -427,8 +429,9 @@ def create_app() -> FastAPI:
         listing = (
             session.execute(
                 text(
-                    "INSERT INTO vehicle_listings (id, make, model, category, price, quantity) "
-                    "VALUES (:id, :make, :model, :category, :price, :quantity) "
+                    "INSERT INTO vehicle_listings "
+                    "(id, make, model, category, price, quantity, image_url) "
+                    "VALUES (:id, :make, :model, :category, :price, :quantity, :image_url) "
                     f"RETURNING {LISTING_COLUMNS}"
                 ),
                 {
@@ -438,6 +441,7 @@ def create_app() -> FastAPI:
                     "category": payload.category.value,
                     "price": payload.price,
                     "quantity": payload.quantity,
+                    "image_url": payload.image_url,
                 },
             )
             .mappings()
