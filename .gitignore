@@ -17,3 +17,6 @@ frontend/playwright/.cache/
 .vercel
 .env*
 !.env.example
+# vercel build generates these at the root from requirements.txt.
+/pyproject.toml
+/uv.lock
