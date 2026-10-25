@@ -152,3 +152,29 @@ def test_seed_demo_resets_the_catalogue_to_sample_vehicles(
         purchases = connection.execute(text("SELECT count(*) FROM purchases")).scalar_one()
     assert vandal.deleted and vandal.deleted_by == "demo.admin@example.com"
     assert purchases == 1
+
+
+def sample_photos(postgres_engine) -> list:
+    with postgres_engine.connect() as connection:
+        return (
+            connection.execute(
+                text("SELECT image_url FROM vehicle_listings WHERE deleted_at IS NULL")
+            )
+            .scalars()
+            .all()
+        )
+
+
+def test_seed_demo_gives_every_sample_its_own_photo(
+    postgres_url: str, postgres_engine, monkeypatch
+) -> None:
+    """Each sample card shows a photo of its model, served over HTTPS."""
+    configure(monkeypatch, postgres_url)
+    from app.scripts.seed_demo import main
+
+    main()
+
+    photos = sample_photos(postgres_engine)
+    assert photos
+    assert all(photo and photo.startswith("https://") for photo in photos)
+    assert len(set(photos)) == len(photos)
