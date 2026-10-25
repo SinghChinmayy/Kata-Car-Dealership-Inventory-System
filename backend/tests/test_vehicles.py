@@ -543,7 +543,9 @@ def test_vehicle_update_returns_not_found_for_unknown_listing(
     UUID(error["request_id"])
 
 
-@pytest.mark.parametrize("extra", [{"quantity": 99}, {"colour": "Red"}, {"id": "ignored"}])
+@pytest.mark.parametrize(
+    "extra", [{"quantity": 99}, {"vin": "MA1TA2BC3D4E5F6G7"}, {"id": "ignored"}]
+)
 def test_vehicle_update_rejects_fields_outside_the_catalogue(
     postgres_url: str, postgres_engine, monkeypatch, extra: dict[str, object]
 ) -> None:
