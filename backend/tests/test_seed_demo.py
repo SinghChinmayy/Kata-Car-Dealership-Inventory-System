@@ -178,3 +178,21 @@ def test_seed_demo_gives_every_sample_its_own_photo(
     assert photos
     assert all(photo and photo.startswith("https://") for photo in photos)
     assert len(set(photos)) == len(photos)
+
+
+def test_every_sample_photo_is_credited() -> None:
+    """CC BY and CC BY-SA require attribution, so each photo's Commons file is in the credits."""
+    from pathlib import Path
+    from urllib.parse import unquote
+
+    from app.scripts.seed_demo import SAMPLE_LISTINGS
+
+    credits_file = Path(__file__).resolve().parents[2] / "docs" / "image-credits.md"
+    credits = credits_file.read_text() if credits_file.exists() else ""
+    uncredited = [
+        f"{make} {model}"
+        for make, model, *_, photo in SAMPLE_LISTINGS
+        if unquote(photo.rsplit("/", 2)[1]) not in credits
+    ]
+
+    assert uncredited == []
