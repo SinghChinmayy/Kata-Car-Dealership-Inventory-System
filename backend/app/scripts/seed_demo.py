@@ -13,15 +13,11 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.main import RegisterRequest, password_hasher
 
-
-def commons_photo(file_path: str) -> str:
-    """Wikimedia's 960px thumbnail of a Commons file, from its "x/xy/File_name.jpg" path."""
-    name = file_path.rsplit("/", 1)[1]
-    return f"https://thumb.wikimedia.org/wikipedia/commons/thumb/{file_path}/960px-{name}"
-
+# The project's public Vercel Blob store (car-photos). Its photos are copies of public-domain
+# or CC0 Wikimedia Commons files, which need no attribution.
+PHOTOS = "https://a4djhfyric3en0ge.public.blob.vercel-storage.com/cars/"
 
 # (make, model, category, price in INR, quantity, photo); one is sold out to show that state.
-# The photos are public-domain or CC0 Wikimedia Commons files, which need no attribution.
 SAMPLE_LISTINGS = [
     (
         "Tata",
@@ -29,7 +25,7 @@ SAMPLE_LISTINGS = [
         "SUV",
         Decimal("1250000.00"),
         5,
-        commons_photo("2/25/Tata_Nexon_Blue_Dual_Tone.jpg"),
+        PHOTOS + "tata-nexon.jpg",
     ),
     (
         "Mahindra",
@@ -37,7 +33,7 @@ SAMPLE_LISTINGS = [
         "SUV",
         Decimal("1149000.00"),
         3,
-        commons_photo("1/16/Mahindra_XUV_3XO_2025.jpg"),
+        PHOTOS + "mahindra-xuv-3xo.jpg",
     ),
     (
         "Hyundai",
@@ -45,7 +41,7 @@ SAMPLE_LISTINGS = [
         "SUV",
         Decimal("1450000.00"),
         4,
-        commons_photo("9/9d/Hyundai_Creta_orange.jpg"),
+        PHOTOS + "hyundai-creta.jpg",
     ),
     (
         "Maruti Suzuki",
@@ -53,7 +49,7 @@ SAMPLE_LISTINGS = [
         "Hatchback",
         Decimal("699000.00"),
         8,
-        commons_photo("3/33/SUZUKI_SWIFT_XR-Limited_2018_Front.jpg"),
+        PHOTOS + "maruti-suzuki-swift.jpg",
     ),
     (
         "Honda",
@@ -61,7 +57,7 @@ SAMPLE_LISTINGS = [
         "Sedan",
         Decimal("1350000.00"),
         2,
-        commons_photo("1/18/Honda_City_5th_gen.jpg"),
+        PHOTOS + "honda-city.jpg",
     ),
     (
         "Toyota",
@@ -69,7 +65,7 @@ SAMPLE_LISTINGS = [
         "Truck",
         Decimal("3740000.00"),
         1,
-        commons_photo("0/08/2026_Toyota_Hilux_Z.jpg"),
+        PHOTOS + "toyota-hilux.jpg",
     ),
     (
         "Kia",
@@ -77,7 +73,7 @@ SAMPLE_LISTINGS = [
         "Van",
         Decimal("6390000.00"),
         2,
-        commons_photo("1/12/22_Kia_Carnival_SX.jpg"),
+        PHOTOS + "kia-carnival.jpg",
     ),
     (
         "Ford",
@@ -85,7 +81,7 @@ SAMPLE_LISTINGS = [
         "Coupe",
         Decimal("7500000.00"),
         0,
-        commons_photo("3/3e/2024_Ford_Mustang_GT_5.0_v8.jpg"),
+        PHOTOS + "ford-mustang.jpg",
     ),
 ]
 
