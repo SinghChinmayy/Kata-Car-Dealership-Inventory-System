@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
 
     database_url: str = "postgresql+psycopg://dealership:dealership@localhost:5432/dealership"
+    # Connections each API process keeps open; serverless hosts run many processes, so use 1 there.
+    db_pool_size: int = Field(default=25, ge=1)
     # Required: anyone who knows this key can forge a token for any account.
     jwt_secret: str = ""
     jwt_access_token_minutes: int = Field(default=60, ge=1)

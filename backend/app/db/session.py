@@ -12,13 +12,14 @@ _session_factory: Optional[sessionmaker[Session]] = None
 
 
 def get_engine() -> Engine:
-    """Build a synchronous engine with capacity for future concurrency testing."""
+    """Build a synchronous engine; the default pool has room for the concurrency tests."""
     global _engine
     if _engine is None:
+        settings = get_settings()
         _engine = create_engine(
-            get_settings().database_url,
+            settings.database_url,
             pool_pre_ping=True,
-            pool_size=25,
+            pool_size=settings.db_pool_size,
             max_overflow=5,
         )
     return _engine
