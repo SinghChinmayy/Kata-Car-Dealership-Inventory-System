@@ -2,7 +2,11 @@
 
 [![CI](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml/badge.svg)](https://github.com/SinghChinmayy/Kata-Car-Dealership-Inventory-System/actions/workflows/ci.yml)
 
-A full-stack inventory system for a car dealership. Administrators manage vehicle listings and stock; signed-in users search the catalogue and buy vehicles one unit at a time. The backend is FastAPI with PostgreSQL, and the frontend is a React single-page app. Both were built test-first, and every change reaches `main` through a pull request that must pass lint, backend, frontend, and end-to-end checks ([how a change ships](#branch-protection-and-how-a-change-ships)). [Architecture](#architecture) shows how the pieces fit together, and [Workflows](#workflows) follows a change from its first failing test to production.
+A portfolio application for dealership administrators maintaining vehicle listings and stock, and buyers looking for an available car. It brings catalogue search, stock updates and one-unit purchases into one interface.
+
+Working features include administrator listing creation, editing, deletion and restocking; buyer search and filtering; vehicle details; and purchase confirmation. Built with FastAPI, PostgreSQL and React. This is a sample dealership workflow, not a real dealership's production system.
+
+[Case study](https://chinmaysingh.me/projects/car-dealership-inventory) · [Screenshots](#screenshots) · [Architecture](#architecture) · [How a change ships](#branch-protection-and-how-a-change-ships)
 
 **Live demo: [car-dealership-inventory-umber.vercel.app](https://car-dealership-inventory-umber.vercel.app)**. The sign-in page lists a shared demo administrator and a demo buyer, each with a button that fills in the login. Anyone can use the demo administrator, so the catalogue may have been edited; it is reset to the sample vehicles from time to time.
 
